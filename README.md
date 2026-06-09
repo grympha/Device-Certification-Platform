@@ -109,7 +109,7 @@ Example:
 
 ```gradle
 buildConfigField "String", "LMX_PACKAGE_NAME", "\"com.qruize.quad42.media.app\""
-buildConfigField "String", "BACKEND_URL", "\"https://YOUR-BACKEND-RENDER-URL.onrender.com/api/reports\""
+buildConfigField "String", "BACKEND_URL", "\"https://device-certification-platform.onrender.com/api/reports\""
 ```
 
 For local LAN testing only, use your PC LAN IP:
@@ -166,14 +166,14 @@ Type: Static Site
 Root Directory: dashboard
 Build Command: npm install && npm run build
 Publish Directory: dist
-Environment Variable: VITE_API_BASE_URL=https://YOUR-BACKEND-RENDER-URL.onrender.com
+Environment Variable: VITE_API_BASE_URL=https://device-certification-platform.onrender.com
 Plan: Free
 ```
 
 After backend deployment, update Android `BACKEND_URL` to:
 
 ```gradle
-buildConfigField "String", "BACKEND_URL", "\"https://YOUR-BACKEND-RENDER-URL.onrender.com/api/reports\""
+buildConfigField "String", "BACKEND_URL", "\"https://device-certification-platform.onrender.com/api/reports\""
 ```
 
 Then rebuild and reinstall the Android APK.

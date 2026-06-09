@@ -15,7 +15,7 @@ android {
         versionName "0.1.0"
 
         buildConfigField "String", "LMX_PACKAGE_NAME", "\"com.qruize.quad42.media.app\""
-        buildConfigField "String", "BACKEND_URL", "\"https://YOUR-BACKEND-RENDER-URL.onrender.com/api/reports\""
+        buildConfigField "String", "BACKEND_URL", "\"https://device-certification-platform.onrender.com/api/reports\""
     }
 
     buildFeatures {

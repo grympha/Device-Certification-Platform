@@ -47,8 +47,8 @@ Render must use Python 3.12 for this MVP. Do not deploy the backend with Python 
 After deployment, verify:
 
 ```text
-https://device-certification-api.onrender.com/health
-https://device-certification-api.onrender.com/docs
+https://device-certification-platform.onrender.com/health
+https://device-certification-platform.onrender.com/docs
 ```
 
 If Render assigns a different URL, use that actual URL in all later steps.
@@ -69,7 +69,7 @@ Plan: Free
 Environment variable:
 
 ```text
-VITE_API_BASE_URL=https://YOUR-BACKEND-RENDER-URL.onrender.com
+VITE_API_BASE_URL=https://device-certification-platform.onrender.com
 ```
 
 The dashboard must use the backend service URL, not the dashboard URL.
@@ -95,7 +95,7 @@ android-agent/app/build.gradle
 Set:
 
 ```gradle
-buildConfigField "String", "BACKEND_URL", "\"https://YOUR-BACKEND-RENDER-URL.onrender.com/api/reports\""
+buildConfigField "String", "BACKEND_URL", "\"https://device-certification-platform.onrender.com/api/reports\""
 ```
 
 Keep the LMX package name:
@@ -148,7 +148,7 @@ Dashboard:
 Android:
 
 - Tap `Show Backend URL`
-- Confirm it uses `https://YOUR-BACKEND-RENDER-URL.onrender.com/api/reports`
+- Confirm it uses `https://device-certification-platform.onrender.com/api/reports`
 - Tap `Upload Report`
 - Confirm `Upload success: HTTP 200`
 - Confirm the dashboard shows the uploaded Android device

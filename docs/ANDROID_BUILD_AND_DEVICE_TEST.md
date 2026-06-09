@@ -20,7 +20,7 @@ android-agent/app/build.gradle
 Set:
 
 ```gradle
-buildConfigField "String", "BACKEND_URL", "\"https://YOUR-BACKEND-RENDER-URL.onrender.com/api/reports\""
+buildConfigField "String", "BACKEND_URL", "\"https://device-certification-platform.onrender.com/api/reports\""
 ```
 
 For local LAN testing, you may temporarily use:
@@ -105,7 +105,7 @@ Expected:
 ## 9. Test Report Upload
 
 1. Make sure the Render backend `/health` endpoint works.
-2. Tap `Show Backend URL` and confirm the app shows the expected `https://YOUR-BACKEND-RENDER-URL.onrender.com/api/reports` URL.
+2. Tap `Show Backend URL` and confirm the app shows the expected `https://device-certification-platform.onrender.com/api/reports` URL.
 3. For local LAN testing only, make sure Android device and PC are on the same network.
 4. Tap `Upload Report`.
 5. Confirm upload status changes from `Uploading...` to `Upload success: HTTP 200`.
