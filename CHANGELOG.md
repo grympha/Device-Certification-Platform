@@ -1,0 +1,35 @@
+# Changelog
+
+## 0.1.0
+
+- Initial MVP scaffold.
+- Added FastAPI backend with SQLite.
+- Added sample Android diagnostic report.
+- Added simple React dashboard.
+- Added Android Kotlin agent skeleton.
+- Added docs and roadmap.
+
+## 0.1.1
+
+- Validated backend API endpoints and report export flow.
+- Fixed dashboard sample status/score mismatch.
+- Fixed dashboard text encoding artifacts.
+- Made Android agent package name and backend URL configurable through Gradle BuildConfig.
+- Avoided newer Android time/WebView API crashes on older supported devices.
+
+## 0.1.2
+
+- Added dashboard `.env.example` for local backend configuration.
+- Added `scripts/smoke_test_v1.py` for local backend/report/export validation.
+- Added dashboard validation checklist.
+- Added Android build and physical device test checklist.
+- Added Android agent debug output for backend URL, LMX package name, diagnostic time, upload status, and upload errors.
+- Enabled cleartext HTTP in the Android MVP agent for local LAN backend testing.
+- Updated README with V1.1 validation steps.
+
+## 0.1.3
+
+- Fixed Android Agent upload flow to use 10 second connect/read timeouts.
+- Added explicit upload success/failure UI messages with HTTP status or real exception details.
+- Added Logcat upload success/error logging with tag `LMXCertification`.
+- Added a `Show Backend URL` button to confirm the exact `BuildConfig.BACKEND_URL` used by the APK.

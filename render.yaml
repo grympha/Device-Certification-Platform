@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: device-certification-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+  - type: static
+    name: device-certification-dashboard
+    rootDir: dashboard
+    plan: free
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://device-certification-api.onrender.com

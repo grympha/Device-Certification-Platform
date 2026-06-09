@@ -1,0 +1,33 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace "com.lmx.certification"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.lmx.certification"
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName "0.1.0"
+
+        buildConfigField "String", "LMX_PACKAGE_NAME", "\"com.qruize.quad42.media.app\""
+        buildConfigField "String", "BACKEND_URL", "\"https://YOUR-BACKEND-RENDER-URL.onrender.com/api/reports\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}

@@ -1,0 +1,30 @@
+{
+  "device_name": "Solum Box",
+  "platform": "Android",
+  "manufacturer": "Solum",
+  "model": "Box",
+  "os_version": "15",
+  "android_sdk": 35,
+  "cpu_architecture": "arm64-v8a",
+  "ram_total_gb": 4.0,
+  "ram_available_gb": 1.8,
+  "storage_total_gb": 32.0,
+  "storage_available_gb": 1.2,
+  "screen_resolution": "1920x1080",
+  "screen_density": 320,
+  "internet_connected": true,
+  "system_time": "2026-06-09T13:00:00+08:00",
+  "timezone": "Asia/Kuala_Lumpur",
+  "webview_version": "106.0.5249.126",
+  "hardware_acceleration_ready": true,
+  "lmx_app_package": "com.lmx.content",
+  "lmx_app_installed": true,
+  "lmx_app_version": "1.4.2",
+  "lmx_app_launchable": true,
+  "permission_status": {
+    "internet": "granted",
+    "network_state": "granted"
+  },
+  "checks": {}
+}
+

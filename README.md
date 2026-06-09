@@ -1,0 +1,202 @@
+# LMX Device Certification Platform
+
+Free/open-source MVP for checking whether Android and Windows devices are healthy and compatible for running LMX Content.
+
+## Stack
+
+- Android Agent: Kotlin
+- Windows Agent: PowerShell
+- Backend API: Python FastAPI
+- Database: SQLite
+- Dashboard: React with Vite
+- Reports: JSON and HTML export
+
+## Run Backend Locally
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Backend runs at `http://127.0.0.1:8000`.
+
+API docs are available at `http://127.0.0.1:8000/docs`.
+
+Health check:
+
+```text
+http://127.0.0.1:8000/health
+```
+
+## Load Sample Report
+
+```bash
+cd backend
+python scripts/load_sample.py
+```
+
+Or post manually:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/reports ^
+  -H "Content-Type: application/json" ^
+  --data-binary "@../reports/sample_android_report.json"
+```
+
+## Run Dashboard Locally
+
+Copy the dashboard environment example first:
+
+```bash
+cd dashboard
+copy .env.example .env
+```
+
+The default dashboard API URL is:
+
+```text
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+Dashboard runs at `http://127.0.0.1:5173`.
+
+Set a custom API URL with:
+
+```powershell
+$env:VITE_API_BASE_URL="http://127.0.0.1:8000"; npm run dev
+```
+
+On macOS/Linux:
+
+```bash
+VITE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
+```
+
+## Build Android APK
+
+Open `android-agent` in Android Studio, then build the debug APK:
+
+```bash
+cd android-agent
+gradle assembleDebug
+```
+
+This repo includes a Gradle wrapper. You can also use Android Studio's built-in Gradle tooling.
+
+Before installing on a device, update the backend URL in `android-agent/app/build.gradle` if the backend is not reachable at the default local network address.
+
+The Android agent reads these values from Gradle `BuildConfig` fields:
+
+- `LMX_PACKAGE_NAME`
+- `BACKEND_URL`
+
+They are configured in:
+
+```text
+android-agent/app/build.gradle
+```
+
+Example:
+
+```gradle
+buildConfigField "String", "LMX_PACKAGE_NAME", "\"com.qruize.quad42.media.app\""
+buildConfigField "String", "BACKEND_URL", "\"https://YOUR-BACKEND-RENDER-URL.onrender.com/api/reports\""
+```
+
+For local LAN testing only, use your PC LAN IP:
+
+```gradle
+buildConfigField "String", "BACKEND_URL", "\"http://YOUR_PC_LAN_IP:8000/api/reports\""
+```
+
+## Run V1 Smoke Test
+
+Start the backend first, then run:
+
+```bash
+python scripts/smoke_test_v1.py
+```
+
+The smoke test checks backend health, uploads the sample Android report, fetches devices, fetches the uploaded report, and verifies JSON/HTML export.
+
+If you run the backend on another port:
+
+```powershell
+$env:LMX_API_BASE_URL="http://127.0.0.1:8010"; python scripts/smoke_test_v1.py
+```
+
+## Validation Guides
+
+- Dashboard checklist: `docs/DASHBOARD_VALIDATION.md`
+- Android build and device checklist: `docs/ANDROID_BUILD_AND_DEVICE_TEST.md`
+- Render deployment guide: `docs/RENDER_DEPLOYMENT.md`
+- Deployment checklist: `docs/DEPLOYMENT_CHECKLIST.md`
+
+## Deploy on Render Free Tier
+
+The repo includes `render.yaml` for a Render Blueprint with:
+
+- Backend web service: `device-certification-api`
+- Dashboard static site: `device-certification-dashboard`
+
+Backend settings:
+
+```text
+Type: Web Service
+Runtime: Python
+Root Directory: backend
+Build Command: pip install -r requirements.txt
+Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+Plan: Free
+```
+
+Dashboard settings:
+
+```text
+Type: Static Site
+Root Directory: dashboard
+Build Command: npm install && npm run build
+Publish Directory: dist
+Environment Variable: VITE_API_BASE_URL=https://YOUR-BACKEND-RENDER-URL.onrender.com
+Plan: Free
+```
+
+After backend deployment, update Android `BACKEND_URL` to:
+
+```gradle
+buildConfigField "String", "BACKEND_URL", "\"https://YOUR-BACKEND-RENDER-URL.onrender.com/api/reports\""
+```
+
+Then rebuild and reinstall the Android APK.
+
+## Upload Troubleshooting
+
+- If Android upload fails, tap `Show Backend URL` in the APK and confirm it matches the backend URL plus `/api/reports`.
+- If backend `/docs` opens but Android upload fails, verify the APK was rebuilt after changing `BACKEND_URL`.
+- If dashboard does not load devices, confirm `VITE_API_BASE_URL` points to the backend Render URL, not the dashboard URL.
+- If browser console shows CORS errors, add the final dashboard URL explicitly in `backend/app/main.py`.
+- Render free services may sleep after inactivity; the first request can be slow.
+
+## MVP Notes
+
+- No paid APIs or paid infrastructure are required.
+- SQLite is used locally and can also run on Render free tier.
+- Authentication is intentionally omitted for the MVP.
+- Dashboard can show bundled sample data if the backend is not running.
+- Android devices cannot reach a laptop backend through `127.0.0.1`; use the laptop LAN IP or deployed API URL in `BACKEND_URL`.
+- The V1 Android agent allows cleartext HTTP for local LAN testing. Use HTTPS for production.
+- The Windows Agent is intentionally a Phase 2 placeholder.
+- Physical Android testing is required before treating APK diagnostics as production-ready.
+
+## Render Free Tier
+
+The included `render.yaml` deploys the backend and dashboard on Render free tier. SQLite on Render free tier is suitable for MVP demos, but the database file is not durable across all redeploys/restarts unless persistent disk is configured. A future production upgrade should use PostgreSQL.
