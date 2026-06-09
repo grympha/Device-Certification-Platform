@@ -29,11 +29,20 @@ If creating manually instead of Blueprint:
 Name: device-certification-api
 Type: Web Service
 Runtime: Python
+Python Version: 3.12.7
 Root Directory: backend
 Build Command: pip install -r requirements.txt
 Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 Plan: Free
 ```
+
+The repo includes `runtime.txt` files at the repo root and inside `backend/` with:
+
+```text
+python-3.12.7
+```
+
+Render must use Python 3.12 for this MVP. Do not deploy the backend with Python 3.14 because pinned dependencies such as `pydantic-core` may fail during installation.
 
 After deployment, verify:
 
@@ -152,4 +161,3 @@ Android:
 - If CORS fails, add the final dashboard URL explicitly in backend CORS settings.
 - SQLite on Render free tier may not persist across redeploys/restarts unless a persistent disk is configured.
 - SQLite is acceptable for MVP testing. Future production upgrade should use PostgreSQL.
-
