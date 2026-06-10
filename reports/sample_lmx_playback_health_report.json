@@ -21,6 +21,7 @@
   "lmx_app_installed": true,
   "lmx_app_version": "2.9.3.6 native",
   "lmx_app_launchable": true,
+  "storage_access_status": "GRANTED",
   "lmx_app_status": {
     "status": "PASS",
     "installed": true,

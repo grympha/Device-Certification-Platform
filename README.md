@@ -276,9 +276,26 @@ The APK report includes:
 - `playback_validation`
 - `log_validation`
 - `overall_health_status`
+- `storage_access_status`
 - `troubleshooting_recommendation`
 
-If Android storage restrictions prevent reading another app's folder, the agent returns `UNKNOWN` for that module instead of crashing.
+On Android 11 and above, the agent must be granted All Files Access before it can read LMX media, audit, and log folders. On first run, the APK shows `LMX Playback Health Permission Required` and provides a `Grant All Files Access` button.
+
+If storage access is denied, the report includes:
+
+```json
+{
+  "storage_access_status": "DENIED"
+}
+```
+
+The file-based modules return `UNKNOWN` instead of `FAIL`:
+
+- `content_download_status`
+- `playback_validation`
+- `log_validation`
+
+This prevents Android scoped-storage restrictions from being treated as real LMX playback failures. After permission is granted, rerun diagnostics or reopen the app so the agent can read `QUAD42MEDIA`, `QUAD42AUDIT`, and `QUAD42LOG`.
 
 The backend stores these LMX Playback Health sections for report history and exposes them through report detail APIs and the dashboard. A test payload is available at:
 

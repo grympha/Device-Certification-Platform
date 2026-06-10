@@ -66,3 +66,10 @@
 - Added migration-safe health columns for `diagnostic_reports`.
 - Added dashboard LMX Playback Health cards and latest health columns in Device List.
 - Added sample LMX Playback Health report payload.
+
+## 0.1.9
+
+- Added Android All Files Access permission flow for LMX Playback Health checks.
+- Added `storage_access_status` to Android diagnostic reports.
+- Returned `UNKNOWN` for media, playback, and log checks when storage access is denied.
+- Added a Storage Access card/status line to the Android LMX Playback Health output.
