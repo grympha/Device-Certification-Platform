@@ -14,6 +14,42 @@ const sampleReport = {
   summary: "Device is not recommended for LMX Content deployment until failed checks are resolved.",
   recommendations:
     "Available storage is below 2GB. Android System WebView is below version 120. Programmatic/VAST playback is not ready because WebView is below 120. Resolve failed checks and review limitations before production deployment.",
+  lmx_app_status: {
+    status: "PASS",
+    installed: true,
+    package_name: "com.qruize.quad42.media.app",
+    version: "2.9.3.6 native",
+    launchable: true
+  },
+  content_download_status: {
+    status: "PASS",
+    media_folder_found: true,
+    downloaded_file_count: 7,
+    download_size_bytes: 133169152,
+    download_size_readable: "127 MB",
+    last_content_update: "2026-06-10 19:32"
+  },
+  playback_validation: {
+    status: "PASS",
+    audit_file_found: true,
+    total_playback_records: 1250,
+    last_playback_time: "2026-06-10 21:08",
+    last_played_content: "Food_Panda_KLS_19062020.mp4",
+    playlist: "Chennai Test",
+    unique_content_count: 6
+  },
+  log_validation: {
+    status: "WARNING",
+    log_folder_found: true,
+    log_files_found: true,
+    crash_logs_found: true,
+    latest_log_update: "2026-06-10 22:04",
+    latest_crash_timestamp: "2026-06-10 22:04"
+  },
+  overall_health_status: "YELLOW",
+  overall_health: { status: "YELLOW", recommendation: "Playback active but crash logs found" },
+  troubleshooting_recommendation:
+    "Review crash logs. If playback is stable, monitor device. If crashes continue, restart player or update LMX Content.",
   raw_json: {
     device_name: "Solum Box",
     platform: "Android",
@@ -54,6 +90,10 @@ const sampleDevice = {
   lmx_app_version: "1.4.2",
   latest_status: "Not Recommended",
   latest_score: 25,
+  latest_overall_health_status: "YELLOW",
+  latest_content_download_status: "PASS",
+  latest_playback_status: "PASS",
+  latest_log_status: "WARNING",
   last_seen: "2026-06-09T13:00:00Z",
   reports: [sampleReport]
 };
@@ -315,6 +355,10 @@ function DeviceList({
               <th>OS</th>
               <th>WebView</th>
               <th>LMX App</th>
+              <th>Overall Health</th>
+              <th>Content Download</th>
+              <th>Playback</th>
+              <th>Logs</th>
               <th>Status</th>
               <th>Score</th>
               <th>Last Check</th>
@@ -334,6 +378,10 @@ function DeviceList({
                 <td>{device.os_version}</td>
                 <td>{device.webview_version || "-"}</td>
                 <td>{device.lmx_app_version || "-"}</td>
+                <td><HealthPill status={device.latest_overall_health_status || "UNKNOWN"} /></td>
+                <td><StatusPill status={device.latest_content_download_status || "UNKNOWN"} /></td>
+                <td><StatusPill status={device.latest_playback_status || "UNKNOWN"} /></td>
+                <td><StatusPill status={device.latest_log_status || "UNKNOWN"} /></td>
                 <td><StatusPill status={device.latest_status} /></td>
                 <td>{device.latest_score}</td>
                 <td>{formatMalaysiaTime(device.last_seen)}</td>
@@ -391,6 +439,12 @@ function ReportPage({ device, report }) {
   const checks = Object.values(raw.checks || {});
   const failed = checks.filter((check) => check.status === "FAIL");
   const limitations = checks.filter((check) => check.status === "WARNING");
+  const lmxApp = healthSection(report, raw, "lmx_app_status");
+  const content = healthSection(report, raw, "content_download_status");
+  const playback = healthSection(report, raw, "playback_validation");
+  const logs = healthSection(report, raw, "log_validation");
+  const overallStatus = report.overall_health_status || raw.overall_health_status || "UNKNOWN";
+  const recommendation = report.troubleshooting_recommendation || raw.troubleshooting_recommendation || report.recommendations;
 
   return (
     <section className="panel report">
@@ -416,12 +470,45 @@ function ReportPage({ device, report }) {
         <dt>Storage Available</dt><dd>{raw.storage_available_gb}GB</dd>
         <dt>LMX Content Version</dt><dd>{raw.lmx_app_version || "Not detected"}</dd>
       </dl>
+      <h3>LMX Playback Health</h3>
+      <div className="health-grid">
+        <HealthCard title="LMX App Status" status={statusOf(lmxApp)} items={[
+          ["Installed", yesNo(valueOf(lmxApp, "installed"))],
+          ["Version", valueOf(lmxApp, "version") || valueOf(lmxApp, "version_name") || raw.lmx_app_version || "-"],
+          ["Launchable", yesNo(valueOf(lmxApp, "launchable"))]
+        ]} />
+        <HealthCard title="Content Download Status" status={statusOf(content)} items={[
+          ["Media Folder", yesNo(valueOf(content, "media_folder_found") ?? valueOf(content, "media_folder_exists"))],
+          ["Files", valueOf(content, "downloaded_file_count") ?? "-"],
+          ["Size", valueOf(content, "download_size_readable") || readableBytes(valueOf(content, "download_size_bytes") ?? valueOf(content, "total_download_size_bytes"))],
+          ["Last Update", valueOf(content, "last_content_update") || valueOf(content, "last_content_update_timestamp") || "-"]
+        ]} />
+        <HealthCard title="Playback Validation" status={statusOf(playback)} items={[
+          ["Audit File", yesNo(valueOf(playback, "audit_file_found") ?? valueOf(playback, "audit_file_exists"))],
+          ["Records", valueOf(playback, "total_playback_records") ?? "-"],
+          ["Last Playback", valueOf(playback, "last_playback_time") || valueOf(playback, "last_playback_date_time") || "-"],
+          ["Last Content", valueOf(playback, "last_played_content") || "-"]
+        ]} />
+        <HealthCard title="Log Validation" status={statusOf(logs)} items={[
+          ["Log Files", yesNo(valueOf(logs, "log_files_found"))],
+          ["Crash Logs", yesNo(valueOf(logs, "crash_logs_found"))],
+          ["Latest Log", valueOf(logs, "latest_log_update") || valueOf(logs, "latest_log_update_timestamp") || "-"],
+          ["Latest Crash", valueOf(logs, "latest_crash_timestamp") || valueOf(logs, "latest_crash_log_timestamp") || "-"]
+        ]} />
+        <section className="health-card overall-health">
+          <div className="health-card-head">
+            <strong>Overall Health Status</strong>
+            <HealthPill status={overallStatus} />
+          </div>
+          <p>{healthSummary(report.overall_health) || healthSummary(raw.overall_health) || recommendation}</p>
+        </section>
+      </div>
       <h3>Failed Checks</h3>
       <ListOrNone items={failed.map((check) => check.message)} />
       <h3>Limitations</h3>
       <ListOrNone items={limitations.map((check) => check.message)} />
       <h3>Recommended Action</h3>
-      <p>{report.recommendations}</p>
+      <p>{recommendation}</p>
       <div className="export-row">
         <a href={`${API_BASE_URL}/api/export/${report.id}?format=html`} target="_blank" rel="noreferrer">HTML</a>
         <a href={`${API_BASE_URL}/api/export/${report.id}?format=json`} target="_blank" rel="noreferrer">JSON</a>
@@ -476,6 +563,30 @@ function StatusPill({ status }) {
   return <span className={`pill ${key}`}>{status}</span>;
 }
 
+function HealthPill({ status }) {
+  const key = String(status || "UNKNOWN").toLowerCase();
+  return <span className={`health-pill ${key}`}>{status || "UNKNOWN"}</span>;
+}
+
+function HealthCard({ title, status, items }) {
+  return (
+    <section className="health-card">
+      <div className="health-card-head">
+        <strong>{title}</strong>
+        <StatusPill status={status || "UNKNOWN"} />
+      </div>
+      <dl>
+        {items.map(([label, value]) => (
+          <React.Fragment key={label}>
+            <dt>{label}</dt>
+            <dd>{value ?? "-"}</dd>
+          </React.Fragment>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 function ListOrNone({ items }) {
   if (!items.length) return <p>None</p>;
   return <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>;
@@ -483,6 +594,37 @@ function ListOrNone({ items }) {
 
 function displayOwner(device = {}, raw = {}) {
   return device.media_owner || raw.media_owner || raw.client_name || "Unassigned";
+}
+
+function healthSection(report, raw, key) {
+  return report?.[key] || raw?.[key] || null;
+}
+
+function statusOf(section) {
+  return valueOf(section, "status") || "UNKNOWN";
+}
+
+function valueOf(section, key) {
+  if (!section || typeof section !== "object") return undefined;
+  return section[key];
+}
+
+function yesNo(value) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "Unknown";
+}
+
+function readableBytes(value) {
+  const size = Number(value || 0);
+  if (!size) return "-";
+  return `${Math.round(size / 1024 / 1024)} MB`;
+}
+
+function healthSummary(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return value.recommendation || value.message || value.status || "";
 }
 
 function formatMalaysiaTime(timestamp) {

@@ -59,3 +59,10 @@
 - Added Android LMX Playback Health diagnostics for app status, content download folder, audit playback file, and logs.
 - Added overall LMX health status and troubleshooting recommendation to the Android JSON report.
 - Added defensive Android file access handling so restricted folders report `UNKNOWN` instead of crashing.
+
+## 0.1.8
+
+- Added backend persistence for Android LMX Playback Health report fields.
+- Added migration-safe health columns for `diagnostic_reports`.
+- Added dashboard LMX Playback Health cards and latest health columns in Device List.
+- Added sample LMX Playback Health report payload.

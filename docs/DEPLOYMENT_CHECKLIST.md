@@ -19,8 +19,10 @@
 - [ ] `VITE_API_BASE_URL` set to backend Render URL
 - [ ] Dashboard opens
 - [ ] Device list loads backend data
+- [ ] Device list shows Overall Health, Content Download, Playback, and Logs columns
 - [ ] Device detail loads
 - [ ] Report panel loads
+- [ ] LMX Playback Health cards show report data
 - [ ] Diagnostic history appears in its own section
 - [ ] Search by device name works
 - [ ] Status filter works

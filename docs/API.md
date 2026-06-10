@@ -4,9 +4,33 @@
 
 Receives one diagnostic report JSON payload from Android Agent or Windows Agent.
 
+LMX Playback Health fields are optional and backwards compatible. New Android Agent reports may include:
+
+```json
+{
+  "lmx_app_status": {},
+  "content_download_status": {},
+  "playback_validation": {},
+  "log_validation": {},
+  "overall_health_status": "YELLOW",
+  "overall_health": "Playback active but crash logs found",
+  "troubleshooting_recommendation": "Review crash logs.",
+  "device_compatibility": {}
+}
+```
+
+Missing health fields are returned as `null` or `UNKNOWN`.
+
 ## GET /api/devices
 
 Lists all tested devices with latest status and score.
+
+Device list responses include the latest health status summary when available:
+
+- `latest_overall_health_status`
+- `latest_content_download_status`
+- `latest_playback_status`
+- `latest_log_status`
 
 ## GET /api/devices/{id}
 
@@ -49,6 +73,17 @@ Diagnostic uploads may also include either `media_owner` or `client_name`. If bo
 
 Shows one full diagnostic report.
 
+Report detail responses include persisted health sections:
+
+- `lmx_app_status`
+- `content_download_status`
+- `playback_validation`
+- `log_validation`
+- `overall_health_status`
+- `overall_health`
+- `troubleshooting_recommendation`
+- `device_compatibility`
+
 ## GET /api/export/{id}
 
 Exports report.
@@ -67,6 +102,12 @@ python scripts/smoke_test_v1.py
 ```
 
 The script uploads `reports/sample_android_report.json` and validates the core V1 API flow.
+
+LMX Playback Health sample payload:
+
+```text
+reports/sample_lmx_playback_health_report.json
+```
 
 Optional custom API URL:
 

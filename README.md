@@ -280,6 +280,22 @@ The APK report includes:
 
 If Android storage restrictions prevent reading another app's folder, the agent returns `UNKNOWN` for that module instead of crashing.
 
+The backend stores these LMX Playback Health sections for report history and exposes them through report detail APIs and the dashboard. A test payload is available at:
+
+```text
+reports/sample_lmx_playback_health_report.json
+```
+
+The dashboard shows LMX Playback Health cards for:
+
+- LMX App Status
+- Content Download Status
+- Playback Validation
+- Log Validation
+- Overall Health Status
+
+Device List also includes latest health columns for Overall Health, Content Download, Playback, and Logs.
+
 ## Upload Troubleshooting
 
 - If Android upload fails, tap `Show Backend URL` in the APK and confirm it matches the backend URL plus `/api/reports`.

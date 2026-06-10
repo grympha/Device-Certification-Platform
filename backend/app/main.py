@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from sqlalchemy import select, text
+from sqlalchemy import inspect, select, text
 from sqlalchemy.orm import Session
 
 from .certification import evaluate_report
@@ -18,18 +18,37 @@ from .schemas import DeviceDetail, DeviceOut, DeviceUpdate, ReportOut
 Base.metadata.create_all(bind=engine)
 
 
-def _ensure_device_media_owner_column() -> None:
-    if engine.dialect.name != "sqlite":
-        return
+REPORT_HEALTH_COLUMNS = {
+    "lmx_app_status": "TEXT",
+    "content_download_status": "TEXT",
+    "playback_validation": "TEXT",
+    "log_validation": "TEXT",
+    "overall_health_status": "VARCHAR(50)",
+    "overall_health": "TEXT",
+    "troubleshooting_recommendation": "TEXT",
+    "device_compatibility": "TEXT",
+}
+
+
+def _ensure_missing_columns() -> None:
+    inspector = inspect(engine)
 
     with engine.begin() as connection:
-        columns = connection.execute(text("PRAGMA table_info(devices)")).fetchall()
-        column_names = {column[1] for column in columns}
-        if "media_owner" not in column_names:
+        device_columns = _table_columns(inspector, "devices")
+        if "media_owner" not in device_columns:
             connection.execute(text("ALTER TABLE devices ADD COLUMN media_owner TEXT"))
 
+        report_columns = _table_columns(inspector, "diagnostic_reports")
+        for column_name, column_type in REPORT_HEALTH_COLUMNS.items():
+            if column_name not in report_columns:
+                connection.execute(text(f"ALTER TABLE diagnostic_reports ADD COLUMN {column_name} {column_type}"))
 
-_ensure_device_media_owner_column()
+
+def _table_columns(inspector, table_name: str) -> set[str]:
+    return {column["name"] for column in inspector.get_columns(table_name)}
+
+
+_ensure_missing_columns()
 
 app = FastAPI(title="LMX Device Certification API", version="0.1.0")
 
@@ -74,6 +93,8 @@ def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dic
     raw_with_checks = dict(payload)
     raw_with_checks["checks"] = evaluation["checks"]
     raw_with_checks["media_owner"] = device.media_owner
+    health_fields = _extract_health_fields(payload)
+    raw_with_checks.update({key: value for key, value in health_fields.items() if value is not None})
 
     report = DiagnosticReport(
         device=device,
@@ -83,12 +104,32 @@ def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dic
         score=evaluation["score"],
         summary=evaluation["summary"],
         recommendations=evaluation["recommendations"],
+        lmx_app_status=_json_or_none(health_fields["lmx_app_status"]),
+        content_download_status=_json_or_none(health_fields["content_download_status"]),
+        playback_validation=_json_or_none(health_fields["playback_validation"]),
+        log_validation=_json_or_none(health_fields["log_validation"]),
+        overall_health_status=health_fields["overall_health_status"],
+        overall_health=_json_or_none(health_fields["overall_health"]),
+        troubleshooting_recommendation=health_fields["troubleshooting_recommendation"],
+        device_compatibility=_json_or_none(health_fields["device_compatibility"]),
     )
     db.add(report)
     db.commit()
     db.refresh(report)
 
-    return {"report_id": report.id, "device_id": device.id, **evaluation}
+    return {
+        "report_id": report.id,
+        "device_id": device.id,
+        **evaluation,
+        "lmx_app_status": health_fields["lmx_app_status"],
+        "content_download_status": health_fields["content_download_status"],
+        "playback_validation": health_fields["playback_validation"],
+        "log_validation": health_fields["log_validation"],
+        "overall_health_status": health_fields["overall_health_status"],
+        "overall_health": health_fields["overall_health"],
+        "troubleshooting_recommendation": health_fields["troubleshooting_recommendation"],
+        "device_compatibility": health_fields["device_compatibility"],
+    }
 
 
 @app.get("/api/devices", response_model=list[DeviceOut])
@@ -180,6 +221,7 @@ def _media_owner_from_payload(payload: dict[str, Any]) -> str:
 
 
 def _report_out(report: DiagnosticReport) -> ReportOut:
+    raw = json.loads(report.raw_json)
     return ReportOut(
         id=report.id,
         device_id=report.device_id,
@@ -188,8 +230,113 @@ def _report_out(report: DiagnosticReport) -> ReportOut:
         score=report.score,
         summary=report.summary,
         recommendations=report.recommendations,
-        raw_json=json.loads(report.raw_json),
+        raw_json=raw,
+        lmx_app_status=_json_from_column(report.lmx_app_status, raw.get("lmx_app_status")),
+        content_download_status=_json_from_column(report.content_download_status, raw.get("content_download_status")),
+        playback_validation=_json_from_column(report.playback_validation, raw.get("playback_validation")),
+        log_validation=_json_from_column(report.log_validation, raw.get("log_validation")),
+        overall_health_status=report.overall_health_status or raw.get("overall_health_status") or "UNKNOWN",
+        overall_health=_json_from_column(report.overall_health, raw.get("overall_health")),
+        troubleshooting_recommendation=report.troubleshooting_recommendation or raw.get("troubleshooting_recommendation"),
+        device_compatibility=_json_from_column(report.device_compatibility, raw.get("device_compatibility")),
     )
+
+
+def _extract_health_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    lmx_app = _normalize_lmx_app_status(payload.get("lmx_app_status"))
+    content = _normalize_content_download_status(payload.get("content_download_status"))
+    playback = _normalize_playback_validation(payload.get("playback_validation"))
+    logs = _normalize_log_validation(payload.get("log_validation"))
+    overall_health = payload.get("overall_health")
+    overall_status = str(payload.get("overall_health_status") or "").strip()
+    if not overall_status and isinstance(overall_health, dict):
+        overall_status = str(overall_health.get("status") or "").strip()
+    if not overall_status:
+        overall_status = "UNKNOWN"
+
+    return {
+        "lmx_app_status": lmx_app,
+        "content_download_status": content,
+        "playback_validation": playback,
+        "log_validation": logs,
+        "overall_health_status": overall_status,
+        "overall_health": overall_health,
+        "troubleshooting_recommendation": payload.get("troubleshooting_recommendation"),
+        "device_compatibility": payload.get("device_compatibility"),
+    }
+
+
+def _normalize_lmx_app_status(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    normalized = dict(value)
+    normalized.setdefault("version", normalized.get("version_name"))
+    normalized.setdefault("version_name", normalized.get("version"))
+    return normalized
+
+
+def _normalize_content_download_status(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    normalized = dict(value)
+    normalized.setdefault("media_folder_found", normalized.get("media_folder_exists"))
+    normalized.setdefault("download_size_bytes", normalized.get("total_download_size_bytes"))
+    normalized.setdefault("download_size_readable", _readable_bytes(normalized.get("download_size_bytes")))
+    normalized.setdefault("last_content_update", normalized.get("last_content_update_timestamp"))
+    return normalized
+
+
+def _normalize_playback_validation(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    normalized = dict(value)
+    normalized.setdefault("audit_file_found", normalized.get("audit_file_exists"))
+    normalized.setdefault("last_playback_time", normalized.get("last_playback_date_time"))
+    normalized.setdefault("playlist", normalized.get("current_or_last_playlist"))
+    return normalized
+
+
+def _normalize_log_validation(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    normalized = dict(value)
+    normalized.setdefault("log_folder_found", normalized.get("log_folder_exists"))
+    if isinstance(normalized.get("log_files_found"), int):
+        normalized.setdefault("log_file_count", normalized.get("log_files_found"))
+        normalized["log_files_found"] = normalized["log_files_found"] > 0
+    if isinstance(normalized.get("crash_logs_found"), int):
+        normalized.setdefault("crash_log_file_count", normalized.get("crash_logs_found"))
+        normalized["crash_logs_found"] = normalized["crash_logs_found"] > 0
+    normalized.setdefault("latest_log_update", normalized.get("latest_log_update_timestamp"))
+    normalized.setdefault("latest_crash_timestamp", normalized.get("latest_crash_log_timestamp"))
+    return normalized
+
+
+def _json_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    return json.dumps(value)
+
+
+def _json_from_column(value: str | None, fallback: Any = None) -> Any:
+    if value:
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return value
+    return fallback
+
+
+def _readable_bytes(value: Any) -> str | None:
+    try:
+        size = int(value or 0)
+    except (TypeError, ValueError):
+        return None
+    if size <= 0:
+        return "0 MB"
+    return f"{round(size / 1024 / 1024)} MB"
 
 
 def _html_report(report: DiagnosticReport) -> str:
