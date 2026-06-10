@@ -18,6 +18,11 @@
 - [ ] Device list loads backend data
 - [ ] Device detail loads
 - [ ] Report panel loads
+- [ ] Diagnostic history appears in its own section
+- [ ] Search by device name works
+- [ ] Status filter works
+- [ ] Media Owner / Client filter works
+- [ ] Edit Client saves `media_owner`
 - [ ] Export links work
 
 ## Android
@@ -36,4 +41,3 @@
 - [ ] SQLite persistence limitation accepted for MVP testing
 - [ ] Render free service sleeping accepted
 - [ ] No authentication enabled yet
-

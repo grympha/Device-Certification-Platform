@@ -141,6 +141,39 @@ $env:LMX_API_BASE_URL="http://127.0.0.1:8010"; python scripts/smoke_test_v1.py
 - Render deployment guide: `docs/RENDER_DEPLOYMENT.md`
 - Deployment checklist: `docs/DEPLOYMENT_CHECKLIST.md`
 
+## Media Owner / Client
+
+Devices support optional `media_owner` metadata. Android uploads may include either:
+
+```json
+{
+  "media_owner": "Client Name"
+}
+```
+
+or:
+
+```json
+{
+  "client_name": "Client Name"
+}
+```
+
+If both are present, `media_owner` is used. If neither is present, the dashboard shows `Unassigned`.
+
+You can edit the selected device in the dashboard with `Edit Client`, or call:
+
+```http
+PATCH /api/devices/{device_id}
+Content-Type: application/json
+
+{
+  "media_owner": "Client Name"
+}
+```
+
+The dashboard also supports search by device name plus filters for status and Media Owner / Client.
+
 ## Deploy on Render Free Tier
 
 The repo includes `render.yaml` for a Render Blueprint with:

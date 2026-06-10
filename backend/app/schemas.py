@@ -12,6 +12,7 @@ class DeviceOut(BaseModel):
     platform: str
     manufacturer: str
     model: str
+    media_owner: str | None = None
     os_version: str
     webview_version: str
     lmx_app_version: str
@@ -34,3 +35,6 @@ class ReportOut(BaseModel):
 class DeviceDetail(DeviceOut):
     reports: list[ReportOut]
 
+
+class DeviceUpdate(BaseModel):
+    media_owner: str | None = None

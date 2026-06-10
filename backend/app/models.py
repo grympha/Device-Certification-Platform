@@ -14,6 +14,7 @@ class Device(Base):
     platform: Mapped[str] = mapped_column(String(50), index=True)
     manufacturer: Mapped[str] = mapped_column(String(100), default="")
     model: Mapped[str] = mapped_column(String(100), default="")
+    media_owner: Mapped[str | None] = mapped_column(String(200), nullable=True)
     os_version: Mapped[str] = mapped_column(String(50), default="")
     webview_version: Mapped[str] = mapped_column(String(100), default="")
     lmx_app_version: Mapped[str] = mapped_column(String(100), default="")
@@ -41,4 +42,3 @@ class DiagnosticReport(Base):
     recommendations: Mapped[str] = mapped_column(Text)
 
     device: Mapped[Device] = relationship(back_populates="reports")
-

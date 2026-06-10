@@ -49,6 +49,7 @@ http://localhost:5173
 - Device List
 - Device Detail
 - Report
+- Diagnostic History
 
 ## Expected UI Result
 
@@ -56,8 +57,13 @@ With backend running and a sample report uploaded:
 
 - Status row shows `Backend connected`
 - Device List shows the uploaded Android device
+- Summary cards show total devices, status counts, and last upload time
+- Device List can be searched by device name
+- Device List can be filtered by status and Media Owner / Client
 - Device Detail shows PASS/WARNING/FAIL checks
+- `Edit Client` saves Media Owner / Client metadata
 - Report page shows final result, failed checks, limitations, recommendations, and HTML/JSON export links
+- Diagnostic History shows date, status, score, and summary
 
 With backend unavailable:
 
@@ -71,4 +77,3 @@ With backend unavailable:
 - Browser blocks API calls: confirm backend CORS middleware is enabled and API URL matches `.env`.
 - Port `5173` is busy: Vite will offer another port; use the URL printed in the terminal.
 - Export links fail: upload a report to the backend first, then refresh the dashboard.
-

@@ -12,6 +12,39 @@ Lists all tested devices with latest status and score.
 
 Shows full diagnostic history for one device.
 
+## PATCH /api/devices/{id}
+
+Updates editable device metadata.
+
+Request body:
+
+```json
+{
+  "media_owner": "Client Name"
+}
+```
+
+Response:
+
+```json
+{
+  "id": 1,
+  "device_name": "Solum Box",
+  "platform": "Android",
+  "manufacturer": "Solum",
+  "model": "Box",
+  "media_owner": "Client Name",
+  "os_version": "15",
+  "webview_version": "120.0.0.0",
+  "lmx_app_version": "1.0.0",
+  "latest_status": "Approved",
+  "latest_score": 100,
+  "last_seen": "2026-06-10T00:00:00"
+}
+```
+
+Diagnostic uploads may also include either `media_owner` or `client_name`. If both are present, `media_owner` is used. If neither is present, the dashboard shows `Unassigned`.
+
 ## GET /api/reports/{id}
 
 Shows one full diagnostic report.

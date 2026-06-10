@@ -33,3 +33,10 @@
 - Added explicit upload success/failure UI messages with HTTP status or real exception details.
 - Added Logcat upload success/error logging with tag `LMXCertification`.
 - Added a `Show Backend URL` button to confirm the exact `BuildConfig.BACKEND_URL` used by the APK.
+
+## 0.1.4
+
+- Added `media_owner` support for devices and diagnostic uploads.
+- Added `PATCH /api/devices/{device_id}` to edit Media Owner / Client metadata.
+- Added startup-safe SQLite migration for the `devices.media_owner` column.
+- Reworked dashboard layout with summary cards, full-width device table, separate detail/report/history sections, filters, and Edit Client controls.

@@ -7,15 +7,26 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .certification import evaluate_report
 from .database import Base, engine, get_db
 from .models import Device, DiagnosticReport
-from .schemas import DeviceDetail, DeviceOut, ReportOut
+from .schemas import DeviceDetail, DeviceOut, DeviceUpdate, ReportOut
 
 Base.metadata.create_all(bind=engine)
+
+
+def _ensure_device_media_owner_column() -> None:
+    with engine.begin() as connection:
+        columns = connection.execute(text("PRAGMA table_info(devices)")).fetchall()
+        column_names = {column[1] for column in columns}
+        if "media_owner" not in column_names:
+            connection.execute(text("ALTER TABLE devices ADD COLUMN media_owner TEXT"))
+
+
+_ensure_device_media_owner_column()
 
 app = FastAPI(title="LMX Device Certification API", version="0.1.0")
 
@@ -47,6 +58,9 @@ def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dic
     device.platform = payload.get("platform") or device.platform
     device.manufacturer = payload.get("manufacturer") or ""
     device.model = payload.get("model") or ""
+    incoming_media_owner = _media_owner_from_payload(payload)
+    if incoming_media_owner:
+        device.media_owner = incoming_media_owner
     device.os_version = str(payload.get("os_version") or "")
     device.webview_version = str(payload.get("webview_version") or "")
     device.lmx_app_version = str(payload.get("lmx_app_version") or "")
@@ -56,6 +70,7 @@ def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dic
 
     raw_with_checks = dict(payload)
     raw_with_checks["checks"] = evaluation["checks"]
+    raw_with_checks["media_owner"] = device.media_owner
 
     report = DiagnosticReport(
         device=device,
@@ -87,6 +102,19 @@ def get_device(device_id: int, db: Session = Depends(get_db)) -> DeviceDetail:
         **DeviceOut.model_validate(device).model_dump(),
         reports=[_report_out(report) for report in device.reports],
     )
+
+
+@app.patch("/api/devices/{device_id}", response_model=DeviceOut)
+def update_device(device_id: int, payload: DeviceUpdate, db: Session = Depends(get_db)) -> Device:
+    device = db.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    media_owner = (payload.media_owner or "").strip()
+    device.media_owner = media_owner or None
+    db.commit()
+    db.refresh(device)
+    return device
 
 
 @app.get("/api/reports/{report_id}", response_model=ReportOut)
@@ -141,6 +169,13 @@ def _find_or_create_device(payload: dict[str, Any], db: Session) -> Device:
     return device
 
 
+def _media_owner_from_payload(payload: dict[str, Any]) -> str:
+    media_owner = str(payload.get("media_owner") or "").strip()
+    if media_owner:
+        return media_owner
+    return str(payload.get("client_name") or "").strip()
+
+
 def _report_out(report: DiagnosticReport) -> ReportOut:
     return ReportOut(
         id=report.id,
@@ -181,6 +216,7 @@ def _html_report(report: DiagnosticReport) -> str:
         <p class="status">{report.final_status} - Score {report.score}</p>
         <table>
           <tr><th>Device</th><td>{raw.get("device_name", "")}</td></tr>
+          <tr><th>Media Owner / Client</th><td>{raw.get("media_owner") or raw.get("client_name") or "Unassigned"}</td></tr>
           <tr><th>Platform</th><td>{raw.get("platform", "")}</td></tr>
           <tr><th>Manufacturer</th><td>{raw.get("manufacturer", "")}</td></tr>
           <tr><th>Model</th><td>{raw.get("model", "")}</td></tr>
