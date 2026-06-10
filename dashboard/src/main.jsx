@@ -250,6 +250,17 @@ function App() {
         </a>
       </section>
 
+      <section className="apk-download-strip">
+        <div>
+          <strong>Android Agent APK</strong>
+          <span>Install this app on Android test devices to upload LMX Playback Health reports.</span>
+        </div>
+        <a className="download-apk-button prominent" href={APK_DOWNLOAD_URL} download="lmx-android-agent-debug.apk">
+          <Download size={18} />
+          Download APK
+        </a>
+      </section>
+
       <SummaryCards summary={summary} />
 
       <DeviceList

@@ -141,6 +141,38 @@ h3 {
   color: #435260;
 }
 
+.apk-download-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1560px;
+  margin: 8px auto 18px;
+  padding: 14px 16px;
+  border: 1px solid #cdd7e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.apk-download-strip div {
+  display: grid;
+  gap: 3px;
+}
+
+.apk-download-strip strong {
+  color: #172026;
+  font-size: 15px;
+}
+
+.apk-download-strip span {
+  color: #5b6b78;
+  font-size: 13px;
+}
+
+.download-apk-button.prominent {
+  min-width: 150px;
+}
+
 .status-row a,
 .export-row a {
   color: #0b6b8f;
@@ -612,6 +644,11 @@ li {
   .topbar-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .apk-download-strip {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   h1 {
