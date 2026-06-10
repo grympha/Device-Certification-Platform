@@ -162,6 +162,14 @@ h3 {
   font-size: 28px;
 }
 
+.metric-card small {
+  display: block;
+  margin-top: 6px;
+  color: #5b6b78;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .metric-card.wide strong {
   font-size: 16px;
   line-height: 1.35;

@@ -8,7 +8,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000
 const sampleReport = {
   id: 1,
   device_id: 1,
-  created_at: "2026-06-09T13:00:00",
+  created_at: "2026-06-09T13:00:00Z",
   final_status: "Not Recommended",
   score: 25,
   summary: "Device is not recommended for LMX Content deployment until failed checks are resolved.",
@@ -54,7 +54,7 @@ const sampleDevice = {
   lmx_app_version: "1.4.2",
   latest_status: "Not Recommended",
   latest_score: 25,
-  last_seen: "2026-06-09T13:00:00",
+  last_seen: "2026-06-09T13:00:00Z",
   reports: [sampleReport]
 };
 
@@ -104,7 +104,7 @@ function App() {
       approved,
       limited,
       notRecommended,
-      lastUpload: lastUpload ? lastUpload.toLocaleString() : "-"
+      lastUpload: lastUpload ? formatMalaysiaTime(lastUpload.toISOString()) : "-"
     };
   }, [devices]);
 
@@ -247,18 +247,19 @@ function SummaryCards({ summary }) {
     <section className="summary-cards">
       <MetricCard label="Total Devices" value={summary.total} />
       <MetricCard label="Approved" value={summary.approved} tone="pass" />
-      <MetricCard label="Approved with Limitation" value={summary.limited} tone="warning" />
-      <MetricCard label="Not Recommended" value={summary.notRecommended} tone="fail" />
-      <MetricCard label="Last Upload Time" value={summary.lastUpload} wide />
-    </section>
+        <MetricCard label="Approved with Limitation" value={summary.limited} tone="warning" />
+        <MetricCard label="Not Recommended" value={summary.notRecommended} tone="fail" />
+        <MetricCard label="Last Upload Time" value={summary.lastUpload} helper="MYT (UTC+8)" wide />
+      </section>
   );
 }
 
-function MetricCard({ label, value, tone = "", wide = false }) {
+function MetricCard({ label, value, helper = "", tone = "", wide = false }) {
   return (
     <section className={`metric-card ${tone} ${wide ? "wide" : ""}`}>
       <span>{label}</span>
       <strong>{value}</strong>
+      {helper && <small>{helper}</small>}
     </section>
   );
 }
@@ -335,7 +336,7 @@ function DeviceList({
                 <td>{device.lmx_app_version || "-"}</td>
                 <td><StatusPill status={device.latest_status} /></td>
                 <td>{device.latest_score}</td>
-                <td>{formatDate(device.last_seen)}</td>
+                <td>{formatMalaysiaTime(device.last_seen)}</td>
               </tr>
             ))}
           </tbody>
@@ -408,6 +409,7 @@ function ReportPage({ device, report }) {
         <dt>Media Owner / Client</dt><dd>{displayOwner(device, raw)}</dd>
         <dt>Device</dt><dd>{raw.device_name}</dd>
         <dt>Platform</dt><dd>{raw.platform}</dd>
+        <dt>Report Time</dt><dd>{formatMalaysiaTime(report.created_at)}</dd>
         <dt>Android Version</dt><dd>{raw.os_version}</dd>
         <dt>WebView Version</dt><dd>{raw.webview_version}</dd>
         <dt>RAM</dt><dd>{raw.ram_total_gb}GB</dd>
@@ -438,7 +440,7 @@ function DiagnosticHistory({ device, onSelectReport }) {
       <div className="history-list">
         {(device.reports || []).map((item) => (
           <button key={item.id} onClick={() => onSelectReport(item.id)}>
-            <span>{formatDate(item.created_at)}</span>
+            <span>{formatMalaysiaTime(item.created_at)}</span>
             <strong>{item.final_status} - {item.score}</strong>
             <small>{item.summary}</small>
           </button>
@@ -483,9 +485,21 @@ function displayOwner(device = {}, raw = {}) {
   return device.media_owner || raw.media_owner || raw.client_name || "Unassigned";
 }
 
-function formatDate(value) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString();
+function formatMalaysiaTime(timestamp) {
+  if (!timestamp) return "-";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "-";
+  const formatted = new Intl.DateTimeFormat("en-MY", {
+    timeZone: "Asia/Kuala_Lumpur",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  }).format(date);
+  return `${formatted.replace(/\b(am|pm)\b/i, (value) => value.toUpperCase())} MYT`;
 }
 
 createRoot(document.getElementById("root")).render(<App />);

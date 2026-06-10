@@ -40,3 +40,9 @@
 - Added `PATCH /api/devices/{device_id}` to edit Media Owner / Client metadata.
 - Added startup-safe SQLite migration for the `devices.media_owner` column.
 - Reworked dashboard layout with summary cards, full-width device table, separate detail/report/history sections, filters, and Edit Client controls.
+
+## 0.1.5
+
+- Standardized backend timestamp output as UTC ISO 8601 strings ending in `Z`.
+- Added dashboard `formatMalaysiaTime(timestamp)` utility for `Asia/Kuala_Lumpur`.
+- Displayed dashboard timestamps with `MYT` and `MYT (UTC+8)` labels while preserving UTC-based sorting.

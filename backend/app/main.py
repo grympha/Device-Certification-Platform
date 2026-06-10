@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -51,7 +51,7 @@ def health() -> dict[str, str]:
 @app.post("/api/reports")
 def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dict[str, Any]:
     evaluation = evaluate_report(payload)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     device = _find_or_create_device(payload, db)
 
     device.device_name = payload.get("device_name") or device.device_name

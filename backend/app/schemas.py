@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 
 class DeviceOut(BaseModel):
@@ -20,6 +20,10 @@ class DeviceOut(BaseModel):
     latest_score: int
     last_seen: datetime
 
+    @field_serializer("last_seen")
+    def serialize_last_seen(self, value: datetime) -> str:
+        return format_utc_timestamp(value)
+
 
 class ReportOut(BaseModel):
     id: int
@@ -31,6 +35,10 @@ class ReportOut(BaseModel):
     recommendations: str
     raw_json: dict[str, Any]
 
+    @field_serializer("created_at")
+    def serialize_created_at(self, value: datetime) -> str:
+        return format_utc_timestamp(value)
+
 
 class DeviceDetail(DeviceOut):
     reports: list[ReportOut]
@@ -38,3 +46,11 @@ class DeviceDetail(DeviceOut):
 
 class DeviceUpdate(BaseModel):
     media_owner: str | None = None
+
+
+def format_utc_timestamp(value: datetime) -> str:
+    if value.tzinfo is None:
+        utc_value = value
+    else:
+        utc_value = value.astimezone(timezone.utc).replace(tzinfo=None)
+    return utc_value.isoformat(timespec="seconds") + "Z"

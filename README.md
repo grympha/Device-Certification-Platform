@@ -174,6 +174,22 @@ Content-Type: application/json
 
 The dashboard also supports search by device name plus filters for status and Media Owner / Client.
 
+## Timezone Handling
+
+The backend stores and returns timestamps in UTC ISO 8601 format, for example:
+
+```text
+2026-06-10T00:02:20Z
+```
+
+The dashboard displays all timestamps in Malaysia time:
+
+```text
+10/06/2026, 08:02:20 AM MYT
+```
+
+Dashboard sorting still uses the original UTC timestamps from the API. Display formatting uses `Asia/Kuala_Lumpur` / `MYT (UTC+8)`.
+
 ## Deploy on Render Free Tier
 
 The repo includes `render.yaml` for a Render Blueprint with:
