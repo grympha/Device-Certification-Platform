@@ -96,6 +96,14 @@ On macOS/Linux:
 VITE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
 ```
 
+The dashboard header includes a `Download APK` button. It serves the Android debug APK from:
+
+```text
+dashboard/public/downloads/app-debug.apk
+```
+
+Replace that file after rebuilding the Android agent to publish a newer installer through the dashboard.
+
 ## Build Android APK
 
 Open `android-agent` in Android Studio, then build the debug APK:

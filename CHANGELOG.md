@@ -73,3 +73,8 @@
 - Added `storage_access_status` to Android diagnostic reports.
 - Returned `UNKNOWN` for media, playback, and log checks when storage access is denied.
 - Added a Storage Access card/status line to the Android LMX Playback Health output.
+
+## 0.1.10
+
+- Added a dashboard `Download APK` button for installing the Android Agent on test devices.
+- Added the debug APK to dashboard static assets at `dashboard/public/downloads/app-debug.apk`.

@@ -16,6 +16,7 @@ dist/
 build/
 local.properties
 *.apk
+!dashboard/public/downloads/app-debug.apk
 
 # OS/editor
 .DS_Store
