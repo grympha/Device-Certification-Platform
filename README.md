@@ -251,6 +251,35 @@ buildConfigField "String", "BACKEND_URL", "\"https://device-certification-platfo
 
 Then rebuild and reinstall the Android APK.
 
+## Android LMX Playback Health
+
+The Android agent also validates LMX Content local health.
+
+LMX package:
+
+```text
+com.qruize.quad42.media.app
+```
+
+Known local paths:
+
+```text
+/sdcard/Android/data/com.qruize.quad42.media.app/files/QUAD42MEDIA/
+/sdcard/Android/data/com.qruize.quad42.media.app/files/QUAD42LOG/
+/sdcard/Android/data/com.qruize.quad42.media.app/files/QUAD42AUDIT/appender.csv
+```
+
+The APK report includes:
+
+- `lmx_app_status`
+- `content_download_status`
+- `playback_validation`
+- `log_validation`
+- `overall_health_status`
+- `troubleshooting_recommendation`
+
+If Android storage restrictions prevent reading another app's folder, the agent returns `UNKNOWN` for that module instead of crashing.
+
 ## Upload Troubleshooting
 
 - If Android upload fails, tap `Show Backend URL` in the APK and confirm it matches the backend URL plus `/api/reports`.

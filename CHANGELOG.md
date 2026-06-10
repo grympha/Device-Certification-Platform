@@ -53,3 +53,9 @@
 - Added `psycopg2-binary` PostgreSQL driver.
 - Guarded SQLite-only migration logic so it does not run against PostgreSQL.
 - Added Neon PostgreSQL setup documentation for persistent Render history.
+
+## 0.1.7
+
+- Added Android LMX Playback Health diagnostics for app status, content download folder, audit playback file, and logs.
+- Added overall LMX health status and troubleshooting recommendation to the Android JSON report.
+- Added defensive Android file access handling so restricted folders report `UNKNOWN` instead of crashing.

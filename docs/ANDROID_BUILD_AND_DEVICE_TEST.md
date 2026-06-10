@@ -92,6 +92,10 @@ Check the on-screen JSON for:
 - LMX app installed status
 - LMX app version if installed
 - LMX app launchable status
+- LMX Playback Health section
+- Content media folder status
+- Audit playback status
+- Log/crash status
 
 ## 8. Test LMX Launch
 
@@ -133,3 +137,23 @@ POST /api/reports 200 OK
 - If the backend log has no `POST /api/reports`, the APK is likely using an old `BACKEND_URL` or the device cannot reach that port.
 - If the backend returns an HTTP error, the app displays the HTTP status and backend error body when available.
 - If Render is sleeping, the first upload may be slow. Open `/health` once, then retry upload.
+
+## LMX Playback Health Checks
+
+The Android agent checks these local LMX paths:
+
+```text
+/sdcard/Android/data/com.qruize.quad42.media.app/files/QUAD42MEDIA/
+/sdcard/Android/data/com.qruize.quad42.media.app/files/QUAD42LOG/
+/sdcard/Android/data/com.qruize.quad42.media.app/files/QUAD42AUDIT/appender.csv
+```
+
+Expected checks:
+
+- `LMX App`: installed, package name, version, launchable
+- `Content Download`: media folder, file count, total size, last update
+- `Playback`: audit file, playback record count, last playback, playlist, content types
+- `Logs`: log file count, crash log count, latest log/crash timestamps
+- `Overall Status`: `GREEN`, `YELLOW`, `ORANGE`, `RED`, or `UNKNOWN`
+
+If Android blocks access to another app's storage, the agent should show `UNKNOWN` instead of crashing. `UNKNOWN` means the folder or file could not be verified from this APK context.
