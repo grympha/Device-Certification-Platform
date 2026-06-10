@@ -7,9 +7,16 @@ Free/open-source MVP for checking whether Android and Windows devices are health
 - Android Agent: Kotlin
 - Windows Agent: PowerShell
 - Backend API: Python FastAPI
-- Database: SQLite
+- Database: SQLite locally, PostgreSQL in production
 - Dashboard: React with Vite
 - Reports: JSON and HTML export
+
+## Environment Variables
+
+| Variable | Required | Used By | Description |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | Optional locally, required on Render for persistent history | Backend | PostgreSQL connection string. If missing, backend uses local SQLite. |
+| `VITE_API_BASE_URL` | Required for deployed dashboard | Dashboard | Backend API base URL, for example `https://device-certification-platform.onrender.com`. |
 
 ## Run Backend Locally
 
@@ -24,6 +31,14 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 Backend runs at `http://127.0.0.1:8000`.
 
 API docs are available at `http://127.0.0.1:8000/docs`.
+
+Local backend uses SQLite by default:
+
+```text
+backend/lmx_certification.db
+```
+
+To test PostgreSQL locally, set `DATABASE_URL` before starting the backend.
 
 Health check:
 
@@ -140,6 +155,7 @@ $env:LMX_API_BASE_URL="http://127.0.0.1:8010"; python scripts/smoke_test_v1.py
 - Android build and device checklist: `docs/ANDROID_BUILD_AND_DEVICE_TEST.md`
 - Render deployment guide: `docs/RENDER_DEPLOYMENT.md`
 - Deployment checklist: `docs/DEPLOYMENT_CHECKLIST.md`
+- Neon PostgreSQL setup: `docs/NEON_POSTGRES_SETUP.md`
 
 ## Media Owner / Client
 
@@ -208,6 +224,14 @@ Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 Plan: Free
 ```
 
+Backend environment variable for persistent history:
+
+```text
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+```
+
+Use Neon PostgreSQL free tier for persistent history. If `DATABASE_URL` is not set, the backend falls back to SQLite, and history can disappear after Render redeploys/restarts.
+
 Dashboard settings:
 
 ```text
@@ -238,7 +262,8 @@ Then rebuild and reinstall the Android APK.
 ## MVP Notes
 
 - No paid APIs or paid infrastructure are required.
-- SQLite is used locally and can also run on Render free tier.
+- SQLite is used locally by default.
+- Neon PostgreSQL free tier is recommended on Render for persistent history.
 - Authentication is intentionally omitted for the MVP.
 - Dashboard can show bundled sample data if the backend is not running.
 - Android devices cannot reach a laptop backend through `127.0.0.1`; use the laptop LAN IP or deployed API URL in `BACKEND_URL`.
@@ -248,4 +273,4 @@ Then rebuild and reinstall the Android APK.
 
 ## Render Free Tier
 
-The included `render.yaml` deploys the backend and dashboard on Render free tier. SQLite on Render free tier is suitable for MVP demos, but the database file is not durable across all redeploys/restarts unless persistent disk is configured. A future production upgrade should use PostgreSQL.
+The included `render.yaml` deploys the backend and dashboard on Render free tier. SQLite is suitable for local development, but Render free service storage is ephemeral. Use `DATABASE_URL` with Neon PostgreSQL to keep device history after redeploys/restarts.

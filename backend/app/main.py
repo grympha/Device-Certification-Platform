@@ -19,6 +19,9 @@ Base.metadata.create_all(bind=engine)
 
 
 def _ensure_device_media_owner_column() -> None:
+    if engine.dialect.name != "sqlite":
+        return
+
     with engine.begin() as connection:
         columns = connection.execute(text("PRAGMA table_info(devices)")).fetchall()
         column_names = {column[1] for column in columns}

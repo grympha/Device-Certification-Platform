@@ -46,3 +46,10 @@
 - Standardized backend timestamp output as UTC ISO 8601 strings ending in `Z`.
 - Added dashboard `formatMalaysiaTime(timestamp)` utility for `Asia/Kuala_Lumpur`.
 - Displayed dashboard timestamps with `MYT` and `MYT (UTC+8)` labels while preserving UTC-based sorting.
+
+## 0.1.6
+
+- Added `DATABASE_URL` backend support for PostgreSQL while keeping local SQLite fallback.
+- Added `psycopg2-binary` PostgreSQL driver.
+- Guarded SQLite-only migration logic so it does not run against PostgreSQL.
+- Added Neon PostgreSQL setup documentation for persistent Render history.

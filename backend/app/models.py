@@ -20,7 +20,7 @@ class Device(Base):
     lmx_app_version: Mapped[str] = mapped_column(String(100), default="")
     latest_status: Mapped[str] = mapped_column(String(50), default="Not Recommended")
     latest_score: Mapped[int] = mapped_column(Integer, default=0)
-    last_seen: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     reports: Mapped[list["DiagnosticReport"]] = relationship(
         back_populates="device",
@@ -34,7 +34,7 @@ class DiagnosticReport(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     device_id: Mapped[int] = mapped_column(ForeignKey("devices.id"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     raw_json: Mapped[str] = mapped_column(Text)
     final_status: Mapped[str] = mapped_column(String(50))
     score: Mapped[int] = mapped_column(Integer)

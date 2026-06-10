@@ -36,6 +36,14 @@ Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 Plan: Free
 ```
 
+Environment variables:
+
+```text
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+```
+
+`DATABASE_URL` is optional for local development, but strongly recommended on Render. Without it, the backend falls back to SQLite, and SQLite data on Render free services can disappear after redeploys or restarts because the filesystem is ephemeral.
+
 The repo includes `runtime.txt` files at the repo root and inside `backend/` with:
 
 ```text
@@ -73,6 +81,17 @@ VITE_API_BASE_URL=https://device-certification-platform.onrender.com
 ```
 
 The dashboard must use the backend service URL, not the dashboard URL.
+
+## Neon PostgreSQL for Persistent History
+
+Use Neon PostgreSQL free tier for persistent report history.
+
+1. Create a Neon project and database.
+2. Copy the connection string.
+3. Add it to the Render backend service as `DATABASE_URL`.
+4. Redeploy the backend.
+
+See `docs/NEON_POSTGRES_SETUP.md` for step-by-step instructions.
 
 ## 4. CORS
 
@@ -159,5 +178,5 @@ Android:
 - If `/health` is slow or times out, wait and refresh once.
 - If dashboard data does not load, confirm `VITE_API_BASE_URL` is the backend URL.
 - If CORS fails, add the final dashboard URL explicitly in backend CORS settings.
-- SQLite on Render free tier may not persist across redeploys/restarts unless a persistent disk is configured.
-- SQLite is acceptable for MVP testing. Future production upgrade should use PostgreSQL.
+- SQLite on Render free tier may not persist across redeploys/restarts because the filesystem is ephemeral.
+- Use Neon PostgreSQL through `DATABASE_URL` if you want history to remain after deployments.

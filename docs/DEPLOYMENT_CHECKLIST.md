@@ -3,10 +3,13 @@
 ## Backend
 
 - [ ] Render backend service deployed
+- [ ] Neon PostgreSQL database created
+- [ ] Backend `DATABASE_URL` environment variable set in Render
 - [ ] `/health` works
 - [ ] `/docs` works
 - [ ] Sample `POST /api/reports` works
 - [ ] `/api/devices` returns uploaded device
+- [ ] Device history remains after backend redeploy
 - [ ] `/api/export/{report_id}?format=html` works
 - [ ] `/api/export/{report_id}?format=json` works
 
