@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
@@ -22,6 +23,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.documentfile.provider.DocumentFile
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -35,6 +37,10 @@ import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
     private val readStorageRequestCode = 42
+    private val selectLmxFolderRequestCode = 43
+    private val prefsName = "lmx_agent_prefs"
+    private val selectedTreeUriKey = "selected_lmx_tree_uri"
+    private val selectedTreeDisplayNameKey = "selected_lmx_tree_display_name"
     private val logTag = "LMXCertification"
     private val lmxPackage = BuildConfig.LMX_PACKAGE_NAME
     private val backendUrl = BuildConfig.BACKEND_URL
@@ -48,6 +54,7 @@ class MainActivity : Activity() {
     private lateinit var debugInfo: TextView
     private lateinit var lmxHealthOutput: TextView
     private lateinit var latestReport: JSONObject
+    private lateinit var prefs: SharedPreferences
     private var lastDiagnosticTime = "Not run"
     private var lastUploadStatus = "Not uploaded"
     private var lastUploadError = ""
@@ -55,11 +62,17 @@ class MainActivity : Activity() {
     private val permissionFlowMarkers = listOf(
         "MANAGE_EXTERNAL_STORAGE",
         "ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
-        "ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION"
+        "ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION",
+        "ACTION_OPEN_DOCUMENT_TREE",
+        "DocumentFile",
+        "selected_lmx_tree_uri",
+        "SAF_FOLDER_ACCESS",
+        "Select LMX Folder"
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
         buildUi()
         logPermissionFlowMarkers()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
@@ -86,6 +99,41 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != readStorageRequestCode) return
         waitingForStoragePermission = false
+        runDiagnostics()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != selectLmxFolderRequestCode) return
+        if (resultCode != RESULT_OK || data?.data == null) {
+            status.text = "LMX folder selection cancelled."
+            runDiagnostics()
+            return
+        }
+
+        val treeUri = data.data ?: return
+        val flags = data.flags and (
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        try {
+            contentResolver.takePersistableUriPermission(treeUri, flags)
+        } catch (error: Exception) {
+            Log.w(logTag, "Unable to persist SAF folder permission.", error)
+        }
+
+        val root = DocumentFile.fromTreeUri(this, treeUri)
+        val validation = validateSafRoot(root)
+        prefs.edit()
+            .putString(selectedTreeUriKey, treeUri.toString())
+            .putString(selectedTreeDisplayNameKey, selectedFolderDisplayName(root, validation.valid))
+            .apply()
+
+        status.text = if (validation.valid) {
+            "LMX folder selected."
+        } else {
+            "Selected folder does not appear to be the LMX Content files folder. Please select Android/data/$lmxPackage/files."
+        }
         runDiagnostics()
     }
 
@@ -145,6 +193,16 @@ class MainActivity : Activity() {
             setOnClickListener { openStoragePermissionSettings() }
         }
 
+        val selectFolderButton = Button(this).apply {
+            text = "Select LMX Folder"
+            setOnClickListener { openLmxFolderPicker() }
+        }
+
+        val clearFolderButton = Button(this).apply {
+            text = "Clear Selected LMX Folder"
+            setOnClickListener { clearSelectedLmxFolder() }
+        }
+
         val launchButton = Button(this).apply {
             text = "Launch LMX Content"
             setOnClickListener { launchLmxContent() }
@@ -160,6 +218,8 @@ class MainActivity : Activity() {
         root.addView(uploadButton)
         root.addView(backendUrlButton)
         root.addView(storageButton)
+        root.addView(selectFolderButton)
+        root.addView(clearFolderButton)
         root.addView(launchButton)
         root.addView(debugInfo)
         root.addView(lmxHealthOutput)
@@ -173,18 +233,24 @@ class MainActivity : Activity() {
     }
 
     private fun updateStorageAccessUi(storageAccess: Boolean) {
+        val safStatus = safAccessStatus()
+        val selectedFolder = prefs.getString(selectedTreeDisplayNameKey, "") ?: ""
+        val selectedLine = if (selectedFolder.isNotBlank()) "\nSelected Folder: $selectedFolder" else ""
+        val accessMethod = if (storageAccess) "DIRECT_FILE_ACCESS" else if (safStatus == "GRANTED") "SAF_FOLDER_ACCESS" else "UNAVAILABLE"
         storageAccessCard.text = """
             Storage Access
             Status: ${if (storageAccess) "GRANTED" else "DENIED"}
+            Access Method: $accessMethod
+            SAF Access: $safStatus$selectedLine
         """.trimIndent()
 
-        storageNotice.text = if (!storageAccess && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        storageNotice.text = if (!storageAccess && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && safStatus != "GRANTED") {
             """
                 Storage Access Required
 
-                LMX Playback Health needs All Files Access to read LMX media, audit, and log files from this device. Without this access, Content Download Status, Playback Validation, and Log Validation will be unavailable.
+                LMX Playback Health needs All Files Access or a selected LMX folder to read LMX media, audit, and log files from this device. Without this access, Content Download Status, Playback Validation, and Log Validation will be unavailable.
 
-                Tap Grant All Files Access above to enable the permission.
+                Tap Grant All Files Access, or tap Select LMX Folder and choose Android/data/com.qruize.quad42.media.app/files.
             """.trimIndent()
         } else {
             ""
@@ -217,6 +283,9 @@ class MainActivity : Activity() {
 
         val storageAccess = hasStorageAccess()
         val storageAccessStatus = if (storageAccess) "GRANTED" else "DENIED"
+        val safStatus = safAccessStatus()
+        val selectedTreeUri = prefs.getString(selectedTreeUriKey, "") ?: ""
+        val selectedTreeDisplayName = prefs.getString(selectedTreeDisplayNameKey, "") ?: ""
 
         val report = JSONObject()
             .put("device_name", "${Build.MANUFACTURER} ${Build.MODEL}")
@@ -246,26 +315,53 @@ class MainActivity : Activity() {
                 .put("network_state", permissionStatus(android.Manifest.permission.ACCESS_NETWORK_STATE))
             )
             .put("storage_access_status", storageAccessStatus)
+            .put("storage_access_method", "UNAVAILABLE")
+            .put("saf_access_status", safStatus)
+            .put("selected_lmx_tree_uri", selectedTreeUri)
+            .put("selected_lmx_tree_display_name", selectedTreeDisplayName)
+            .put("selected_lmx_folder_valid", false)
             .put("android_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
 
         val lmxAppStatus = collectLmxAppStatus(packageInfo, launchIntent)
         report.put("lmx_app_status", lmxAppStatus)
 
-        if (!storageAccess) {
+        val directHealth = if (storageAccess) collectDirectPlaybackHealth() else null
+        val safHealth = if (directHealth == null || directHealth.hasUnavailableModule()) {
+            collectSafPlaybackHealth()
+        } else {
+            null
+        }
+        val playbackHealth = when {
+            directHealth != null && !directHealth.hasUnavailableModule() -> directHealth
+            safHealth != null && safHealth.valid -> safHealth
+            directHealth != null && storageAccess -> directHealth
+            else -> null
+        }
+
+        if (playbackHealth == null || !playbackHealth.valid) {
             val unavailable = playbackHealthUnavailable()
+            if (safHealth != null) {
+                report.put("selected_lmx_folder_valid", safHealth.valid)
+            }
             return report
+                .put("storage_access_method", "UNAVAILABLE")
                 .put("overall_health_status", "UNKNOWN")
                 .put("overall_health", unavailable)
                 .put("lmx_playback_health_unavailable", unavailable)
                 .put("troubleshooting_recommendation", unavailable.getString("reason"))
         }
 
-        val contentDownloadStatus = collectContentDownloadStatus()
-        val playbackValidation = collectPlaybackValidation()
-        val logValidation = collectLogValidation()
+        val contentDownloadStatus = playbackHealth.content
+        val playbackValidation = playbackHealth.playback
+        val logValidation = playbackHealth.logs
         val overallHealth = calculateOverallHealth(lmxAppStatus, contentDownloadStatus, playbackValidation, logValidation)
 
         return report
+            .put("storage_access_method", playbackHealth.method)
+            .put("saf_access_status", safStatus)
+            .put("selected_lmx_tree_uri", selectedTreeUri)
+            .put("selected_lmx_tree_display_name", selectedTreeDisplayName)
+            .put("selected_lmx_folder_valid", playbackHealth.method == "SAF_FOLDER_ACCESS")
             .put("content_download_status", contentDownloadStatus)
             .put("playback_validation", playbackValidation)
             .put("log_validation", logValidation)
@@ -460,6 +556,192 @@ class MainActivity : Activity() {
             .put("latest_crash_log_timestamp", if (latestCrash > 0) formatMillis(latestCrash) else "")
     }
 
+    private data class PlaybackHealth(
+        val method: String,
+        val valid: Boolean,
+        val content: JSONObject,
+        val playback: JSONObject,
+        val logs: JSONObject
+    ) {
+        fun hasUnavailableModule(): Boolean {
+            return listOf(content, playback, logs).any {
+                val status = it.optString("status")
+                status == "UNKNOWN" || status == "FAIL"
+            }
+        }
+    }
+
+    private data class SafValidation(
+        val valid: Boolean,
+        val root: DocumentFile?
+    )
+
+    private fun collectDirectPlaybackHealth(): PlaybackHealth {
+        return PlaybackHealth(
+            method = "DIRECT_FILE_ACCESS",
+            valid = true,
+            content = collectContentDownloadStatus(),
+            playback = collectPlaybackValidation(),
+            logs = collectLogValidation()
+        )
+    }
+
+    private fun collectSafPlaybackHealth(): PlaybackHealth? {
+        val treeUriText = prefs.getString(selectedTreeUriKey, "") ?: ""
+        if (treeUriText.isBlank()) return null
+        val treeUri = Uri.parse(treeUriText)
+        val tree = DocumentFile.fromTreeUri(this, treeUri) ?: return null
+        val validation = validateSafRoot(tree)
+        if (!validation.valid || validation.root == null) {
+            return PlaybackHealth(
+                method = "SAF_FOLDER_ACCESS",
+                valid = false,
+                content = unknownResult("Content Download", "Selected folder does not appear to be the LMX Content files folder."),
+                playback = unknownResult("Playback", "Selected folder does not appear to be the LMX Content files folder."),
+                logs = unknownResult("Logs", "Selected folder does not appear to be the LMX Content files folder.")
+            )
+        }
+        val root = validation.root
+        return PlaybackHealth(
+            method = "SAF_FOLDER_ACCESS",
+            valid = true,
+            content = collectSafContentDownloadStatus(root),
+            playback = collectSafPlaybackValidation(root),
+            logs = collectSafLogValidation(root)
+        )
+    }
+
+    private fun collectSafContentDownloadStatus(root: DocumentFile): JSONObject {
+        val mediaDir = root.findDirectory("QUAD42MEDIA") ?: return unknownResult(
+            "Content Download",
+            "QUAD42MEDIA folder is missing from selected LMX folder."
+        )
+            .put("media_folder_found", false)
+
+        val files = collectDocumentFiles(mediaDir).filter { it.isFile }
+        val totalSize = files.sumOf { it.length().coerceAtLeast(0L) }
+        val lastModified = files.maxOfOrNull { it.lastModified() } ?: 0L
+        val minutesSinceUpdate = if (lastModified > 0) (System.currentTimeMillis() - lastModified) / 60_000 else null
+        val recent = minutesSinceUpdate != null && minutesSinceUpdate <= 1_440
+        val status = when {
+            files.isEmpty() || totalSize <= 0 -> "FAIL"
+            !recent -> "WARNING"
+            else -> "PASS"
+        }
+        val message = when (status) {
+            "PASS" -> "Media files are present and recently updated."
+            "WARNING" -> "Media files are present but no recent content update was detected."
+            else -> "Media folder exists but no media files were found."
+        }
+        return JSONObject()
+            .put("status", status)
+            .put("message", message)
+            .put("media_folder_found", true)
+            .put("downloaded_file_count", files.size)
+            .put("total_download_size_bytes", totalSize)
+            .put("total_download_size_mb", bytesToMb(totalSize))
+            .put("last_content_update_timestamp", if (lastModified > 0) formatMillis(lastModified) else "")
+            .put("minutes_since_last_update", minutesSinceUpdate ?: JSONObject.NULL)
+            .put("recent_update_threshold_minutes", 1_440)
+    }
+
+    private fun collectSafPlaybackValidation(root: DocumentFile): JSONObject {
+        val auditDir = root.findDirectory("QUAD42AUDIT") ?: return unknownResult(
+            "Playback",
+            "QUAD42AUDIT folder is missing from selected LMX folder."
+        )
+            .put("audit_file_found", false)
+        val auditFile = auditDir.findFile("appender.csv") ?: return unknownResult(
+            "Playback",
+            "QUAD42AUDIT/appender.csv is missing from selected LMX folder."
+        )
+            .put("audit_file_found", false)
+
+        val rows = readDocumentText(auditFile)
+            ?.lineSequence()
+            ?.filter { it.isNotBlank() }
+            ?.toList()
+            ?: return unknownResult("Playback", "Unable to read QUAD42AUDIT/appender.csv through SAF.")
+                .put("audit_file_found", true)
+
+        if (rows.size <= 1) {
+            return JSONObject()
+                .put("status", "FAIL")
+                .put("message", "Audit file exists but no playback records were found.")
+                .put("audit_file_found", true)
+                .put("total_playback_records", 0)
+        }
+
+        val records = rows.drop(1).mapNotNull { parseAuditRecord(it) }
+        if (records.isEmpty()) {
+            return JSONObject()
+                .put("status", "FAIL")
+                .put("message", "Audit file exists but no valid playback records were found.")
+                .put("audit_file_found", true)
+                .put("total_playback_records", 0)
+        }
+
+        val latestRecord = records.maxByOrNull { it.timestampMillis ?: 0L } ?: records.last()
+        val uniqueContents = LinkedHashSet<String>()
+        val contentTypes = LinkedHashSet<String>()
+        records.forEach { record ->
+            if (record.content.isNotBlank()) uniqueContents.add(record.content)
+            if (record.contentType.isNotBlank()) contentTypes.add(record.contentType)
+        }
+        val minutesSincePlayback = latestRecord.timestampMillis?.let { (System.currentTimeMillis() - it) / 60_000 }
+        val active = minutesSincePlayback != null && minutesSincePlayback <= 30
+        val status = if (active) "PASS" else "WARNING"
+        val message = if (active) "Playback records are active." else "Playback records exist but last playback is older than 30 minutes."
+
+        return JSONObject()
+            .put("status", status)
+            .put("message", message)
+            .put("audit_file_found", true)
+            .put("total_playback_records", records.size)
+            .put("last_playback_date_time", latestRecord.displayDateTime)
+            .put("minutes_since_last_playback", minutesSincePlayback ?: JSONObject.NULL)
+            .put("last_played_content", latestRecord.content)
+            .put("current_or_last_playlist", latestRecord.playlist)
+            .put("unique_content_count", uniqueContents.size)
+            .put("content_types_played", contentTypes.joinToString(", "))
+            .put("active_playback_threshold_minutes", 30)
+    }
+
+    private fun collectSafLogValidation(root: DocumentFile): JSONObject {
+        val logDir = root.findDirectory("QUAD42LOG") ?: return unknownResult(
+            "Logs",
+            "QUAD42LOG folder is missing from selected LMX folder."
+        )
+            .put("log_folder_found", false)
+
+        val logFiles = collectDocumentFiles(logDir).filter { it.isFile }
+        val crashFiles = logFiles.filter { file ->
+            val name = (file.name ?: "").lowercase(Locale.US)
+            name.contains("crash") || name.contains("exception") || name.contains("fatal")
+        }
+        val latestLog = logFiles.maxOfOrNull { it.lastModified() } ?: 0L
+        val latestCrash = crashFiles.maxOfOrNull { it.lastModified() } ?: 0L
+        val status = when {
+            crashFiles.isNotEmpty() -> "WARNING"
+            logFiles.isNotEmpty() -> "PASS"
+            else -> "WARNING"
+        }
+        val message = when {
+            crashFiles.isNotEmpty() -> "Crash log files were found."
+            logFiles.isNotEmpty() -> "Normal log files were found."
+            else -> "Log folder exists but no log files were found."
+        }
+
+        return JSONObject()
+            .put("status", status)
+            .put("message", message)
+            .put("log_folder_found", true)
+            .put("log_files_found", logFiles.size)
+            .put("crash_log_files_found", crashFiles.size)
+            .put("latest_log_update_timestamp", if (latestLog > 0) formatMillis(latestLog) else "")
+            .put("latest_crash_log_timestamp", if (latestCrash > 0) formatMillis(latestCrash) else "")
+    }
+
     private fun calculateOverallHealth(
         lmxAppStatus: JSONObject,
         contentDownloadStatus: JSONObject,
@@ -604,6 +886,58 @@ class MainActivity : Activity() {
         } catch (_: Exception) {
             0L
         }
+    }
+
+    private fun validateSafRoot(root: DocumentFile?): SafValidation {
+        if (root == null || !root.isDirectory) return SafValidation(false, null)
+        if (root.hasExpectedLmxFolders()) return SafValidation(true, root)
+        val filesDir = root.findDirectory("files")
+        if (filesDir != null && filesDir.hasExpectedLmxFolders()) {
+            return SafValidation(true, filesDir)
+        }
+        return SafValidation(false, root)
+    }
+
+    private fun DocumentFile.hasExpectedLmxFolders(): Boolean {
+        return findDirectory("QUAD42MEDIA") != null &&
+            findDirectory("QUAD42AUDIT") != null &&
+            findDirectory("QUAD42LOG") != null
+    }
+
+    private fun DocumentFile.findDirectory(name: String): DocumentFile? {
+        return listFiles().firstOrNull { it.isDirectory && it.name == name }
+    }
+
+    private fun collectDocumentFiles(root: DocumentFile): List<DocumentFile> {
+        val files = mutableListOf<DocumentFile>()
+        root.listFiles().forEach { child ->
+            files.add(child)
+            if (child.isDirectory) {
+                files.addAll(collectDocumentFiles(child))
+            }
+        }
+        return files
+    }
+
+    private fun readDocumentText(file: DocumentFile): String? {
+        return try {
+            contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() }
+        } catch (error: Exception) {
+            Log.w(logTag, "Unable to read SAF document ${file.uri}", error)
+            null
+        }
+    }
+
+    private fun safAccessStatus(): String {
+        val uriText = prefs.getString(selectedTreeUriKey, "") ?: ""
+        if (uriText.isBlank()) return "NOT_SELECTED"
+        val tree = DocumentFile.fromTreeUri(this, Uri.parse(uriText))
+        return if (validateSafRoot(tree).valid) "GRANTED" else "DENIED"
+    }
+
+    private fun selectedFolderDisplayName(root: DocumentFile?, valid: Boolean): String {
+        if (valid) return "Android/data/$lmxPackage/files"
+        return root?.name ?: "Selected folder"
     }
 
     private fun unknownResult(module: String, message: String): JSONObject {
@@ -905,6 +1239,41 @@ class MainActivity : Activity() {
             waitingForStoragePermission = false
             runDiagnostics()
         }
+    }
+
+    private fun openLmxFolderPicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(intent, selectLmxFolderRequestCode)
+        } catch (error: Exception) {
+            Log.e(logTag, "Unable to open SAF folder picker.", error)
+            status.text = "Unable to open folder picker."
+        }
+    }
+
+    private fun clearSelectedLmxFolder() {
+        val uriText = prefs.getString(selectedTreeUriKey, "") ?: ""
+        if (uriText.isNotBlank()) {
+            try {
+                contentResolver.releasePersistableUriPermission(
+                    Uri.parse(uriText),
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (error: Exception) {
+                Log.w(logTag, "Unable to release SAF folder permission.", error)
+            }
+        }
+        prefs.edit()
+            .remove(selectedTreeUriKey)
+            .remove(selectedTreeDisplayNameKey)
+            .apply()
+        status.text = "Selected LMX folder cleared."
+        runDiagnostics()
     }
 
     private fun launchLmxContent() {

@@ -97,6 +97,35 @@ Check the on-screen JSON for:
 - Audit playback status
 - Log/crash status
 
+## 7A. Storage Access and SAF Folder Picker
+
+Android 11-15 may block direct access to another app's `Android/data` folder even when All Files Access is enabled.
+
+1. If the app shows `Storage Access: DENIED`, tap `Grant All Files Access`.
+2. Return to the app and confirm diagnostics rerun.
+3. If Content Download, Playback, or Log validation is still unavailable, tap `Select LMX Folder`.
+4. Select this folder:
+
+```text
+Android/data/com.qruize.quad42.media.app/files
+```
+
+The selected folder should contain:
+
+- `QUAD42MEDIA`
+- `QUAD42AUDIT`
+- `QUAD42LOG`
+
+If the app warns that the folder does not appear to be the LMX Content files folder, select the exact `files` folder above. The app also accepts selecting `Android/data/com.qruize.quad42.media.app` if it contains a `files` child folder with the required LMX subfolders.
+
+The report should show:
+
+- `storage_access_method`: `DIRECT_FILE_ACCESS`, `SAF_FOLDER_ACCESS`, or `UNAVAILABLE`
+- `saf_access_status`: `GRANTED`, `DENIED`, or `NOT_SELECTED`
+- `selected_lmx_folder_valid`: `true` when the selected folder is valid
+
+Tap `Clear Selected LMX Folder` to remove the saved SAF permission and select again.
+
 ## 8. Test LMX Launch
 
 Tap `Launch LMX Content`.

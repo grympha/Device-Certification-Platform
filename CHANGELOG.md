@@ -85,3 +85,10 @@
 - Separated Device Certification Result, LMX Playback Health, and Final Recommendation in backend and dashboard output.
 - Added `final_recommendation` to report responses.
 - Updated dashboard behavior so denied storage access shows `LMX Playback Health Unavailable` instead of failed playback health cards.
+
+## 0.1.12
+
+- Added Android SAF folder picker fallback using `ACTION_OPEN_DOCUMENT_TREE`.
+- Added persistent selected LMX folder support with `DocumentFile` reads for `QUAD42MEDIA`, `QUAD42AUDIT`, and `QUAD42LOG`.
+- Added `storage_access_method`, `saf_access_status`, `selected_lmx_tree_uri`, and `selected_lmx_folder_valid` to Android reports.
+- Added `Select LMX Folder` and `Clear Selected LMX Folder` Android Agent actions.

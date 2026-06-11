@@ -322,6 +322,23 @@ The APK report includes:
 
 On Android 11 and above, the agent must be granted All Files Access before it can read LMX media, audit, and log folders. On first run, the APK shows `LMX Playback Health Permission Required` and provides a `Grant All Files Access` button.
 
+Some Android 11-15 devices still block direct access to another app's `Android/data` folder even after All Files Access is granted. The Android Agent includes a SAF folder picker fallback:
+
+1. Tap `Select LMX Folder`.
+2. Select:
+
+```text
+Android/data/com.qruize.quad42.media.app/files
+```
+
+The selected folder must contain:
+
+- `QUAD42MEDIA`
+- `QUAD42AUDIT`
+- `QUAD42LOG`
+
+The app saves the selected folder permission and uses DocumentFile-based reads when direct file access is unavailable. Tap `Clear Selected LMX Folder` to remove the saved SAF folder.
+
 If storage access is denied, the report includes:
 
 ```json
@@ -336,7 +353,7 @@ The file-based modules return `UNKNOWN` instead of `FAIL`, and the dashboard hid
 - `playback_validation`
 - `log_validation`
 
-This prevents Android scoped-storage restrictions from being treated as real LMX playback failures. The dashboard shows `LMX Playback Health Unavailable` with Overall Health `UNKNOWN`. After permission is granted, rerun diagnostics or reopen the app so the agent can read `QUAD42MEDIA`, `QUAD42AUDIT`, and `QUAD42LOG`.
+This prevents Android scoped-storage restrictions from being treated as real LMX playback failures. The dashboard shows `LMX Playback Health Unavailable` with Overall Health `UNKNOWN`. After permission is granted or the SAF folder is selected, rerun diagnostics or reopen the app so the agent can read `QUAD42MEDIA`, `QUAD42AUDIT`, and `QUAD42LOG`.
 
 The backend stores these LMX Playback Health sections for report history and exposes them through report detail APIs and the dashboard. A test payload is available at:
 
