@@ -43,6 +43,7 @@ class MainActivity : Activity() {
     private val auditFilePath = "/sdcard/Android/data/$lmxPackage/files/QUAD42AUDIT/appender.csv"
     private lateinit var output: TextView
     private lateinit var status: TextView
+    private lateinit var storageAccessCard: TextView
     private lateinit var storageNotice: TextView
     private lateinit var debugInfo: TextView
     private lateinit var lmxHealthOutput: TextView
@@ -55,6 +56,9 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+            showStoragePermissionBanner()
+        }
         runDiagnostics()
     }
 
@@ -83,6 +87,12 @@ class MainActivity : Activity() {
             textSize = 28f
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 16)
+        }
+
+        storageAccessCard = TextView(this).apply {
+            textSize = 16f
+            setPadding(16, 16, 16, 16)
+            setTextIsSelectable(true)
         }
 
         storageNotice = TextView(this).apply {
@@ -133,6 +143,7 @@ class MainActivity : Activity() {
         }
 
         root.addView(status)
+        root.addView(storageAccessCard)
         root.addView(storageNotice)
         root.addView(uploadButton)
         root.addView(backendUrlButton)
@@ -145,7 +156,16 @@ class MainActivity : Activity() {
         updateDebugInfo()
     }
 
-    private fun updateStorageNotice(storageAccess: Boolean) {
+    private fun showStoragePermissionBanner() {
+        updateStorageAccessUi(false)
+    }
+
+    private fun updateStorageAccessUi(storageAccess: Boolean) {
+        storageAccessCard.text = """
+            Storage Access
+            Status: ${if (storageAccess) "GRANTED" else "DENIED"}
+        """.trimIndent()
+
         storageNotice.text = if (!storageAccess && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             """
                 Storage Access Required
@@ -161,7 +181,7 @@ class MainActivity : Activity() {
 
     private fun runDiagnostics() {
         latestReport = collectReport()
-        updateStorageNotice(latestReport.optString("storage_access_status") == "GRANTED")
+        updateStorageAccessUi(latestReport.optString("storage_access_status") == "GRANTED")
         val evaluation = evaluate(latestReport)
         latestReport.put("checks", evaluation.getJSONObject("checks"))
         latestReport.put("device_compatibility", evaluation)
