@@ -46,6 +46,7 @@ class ReportOut(BaseModel):
     overall_health: dict[str, Any] | str | None = None
     troubleshooting_recommendation: str | None = None
     device_compatibility: dict[str, Any] | None = None
+    final_recommendation: str | None = None
 
     @field_serializer("created_at")
     def serialize_created_at(self, value: datetime) -> str:

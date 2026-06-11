@@ -72,6 +72,7 @@ class DiagnosticReport(Base):
     overall_health: Mapped[str | None] = mapped_column(Text, nullable=True)
     troubleshooting_recommendation: Mapped[str | None] = mapped_column(Text, nullable=True)
     device_compatibility: Mapped[str | None] = mapped_column(Text, nullable=True)
+    final_recommendation: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     device: Mapped[Device] = relationship(back_populates="reports")
 

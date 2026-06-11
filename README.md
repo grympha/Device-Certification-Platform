@@ -263,6 +263,39 @@ Then rebuild and reinstall the Android APK.
 
 The Android agent also validates LMX Content local health.
 
+## Certification Framework
+
+The platform separates three outcomes:
+
+- `Device Certification Result`: hardware/software compatibility only.
+- `Overall Health Status`: LMX playback, content, and log health.
+- `Final Recommendation`: deployment decision using both results.
+
+Device compatibility rules:
+
+- Android: PASS 11+, WARNING 9-10, FAIL below 9.
+- RAM: PASS 4GB+, WARNING 2GB-3.99GB, FAIL below 2GB.
+- Storage: PASS 5GB+ free, WARNING 2GB-4.99GB, FAIL below 2GB.
+- WebView: PASS 110+, WARNING 100-109, FAIL below 100.
+- Network: PASS when connected, FAIL when offline.
+- Time/Timezone: PASS when detected, WARNING when timezone cannot be verified, FAIL when device time is invalid.
+- LMX App Installed/Launch: PASS when package `com.qruize.quad42.media.app` is detected and launchable, FAIL otherwise.
+- Programmatic/VAST: PASS for Android 11+, WebView 110+, RAM 3GB+, and internet, or when actual VAST playback success is reported. WARNING for Android 11+ with WebView 100-109. FAIL below Android 11 or WebView 100.
+- Pull To Content: Android PASS requires LMX `2.9.1.2 native` or above with pairing verified. If the version is supported but pairing cannot be verified, the MVP returns WARNING. Below `2.9.1.2 native` is FAIL.
+
+Device certification result:
+
+- `Approved`: no FAIL and no WARNING.
+- `Approved with Limitation`: no FAIL and one or more WARNING.
+- `Not Recommended`: any FAIL.
+
+Final recommendation:
+
+- `Certified for LMX Content`: Device Certification is Approved and Overall Health is GREEN.
+- `Certified with Limitation`: Device Certification is Approved with Limitation or Overall Health is YELLOW.
+- `Not Recommended`: Device Certification is Not Recommended, or Overall Health is ORANGE/RED.
+- `Unable to Validate`: Overall Health is UNKNOWN.
+
 LMX package:
 
 ```text
@@ -297,13 +330,13 @@ If storage access is denied, the report includes:
 }
 ```
 
-The file-based modules return `UNKNOWN` instead of `FAIL`:
+The file-based modules return `UNKNOWN` instead of `FAIL`, and the dashboard hides those unavailable cards:
 
 - `content_download_status`
 - `playback_validation`
 - `log_validation`
 
-This prevents Android scoped-storage restrictions from being treated as real LMX playback failures. After permission is granted, rerun diagnostics or reopen the app so the agent can read `QUAD42MEDIA`, `QUAD42AUDIT`, and `QUAD42LOG`.
+This prevents Android scoped-storage restrictions from being treated as real LMX playback failures. The dashboard shows `LMX Playback Health Unavailable` with Overall Health `UNKNOWN`. After permission is granted, rerun diagnostics or reopen the app so the agent can read `QUAD42MEDIA`, `QUAD42AUDIT`, and `QUAD42LOG`.
 
 The backend stores these LMX Playback Health sections for report history and exposes them through report detail APIs and the dashboard. A test payload is available at:
 

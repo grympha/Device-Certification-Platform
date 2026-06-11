@@ -55,6 +55,14 @@
     "latest_crash_timestamp": "2026-06-10 22:04"
   },
   "overall_health_status": "YELLOW",
-  "overall_health": "Playback active but crash logs found",
+  "overall_health": {
+    "status": "YELLOW",
+    "recommendation": "Playback active but crash logs found",
+    "lmx_installed": true,
+    "media_present": true,
+    "playback_active": true,
+    "crash_logs_found": true
+  },
+  "final_recommendation": "Certified with Limitation",
   "troubleshooting_recommendation": "Review crash logs. If playback is stable, monitor device. If crashes continue, restart player or update LMX Content."
 }

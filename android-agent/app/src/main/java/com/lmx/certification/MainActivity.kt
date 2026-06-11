@@ -179,6 +179,7 @@ class MainActivity : Activity() {
         val evaluation = evaluate(latestReport)
         latestReport.put("checks", evaluation.getJSONObject("checks"))
         latestReport.put("device_compatibility", evaluation)
+        latestReport.put("final_recommendation", finalRecommendation(evaluation.getString("final_status"), latestReport.optString("overall_health_status", "UNKNOWN")))
         val finalStatus = evaluation.getString("final_status")
         lastDiagnosticTime = latestReport.optString("system_time", currentIsoTime())
         status.text = finalStatus
@@ -476,11 +477,10 @@ class MainActivity : Activity() {
         val hasUnknown = listOf(lmxAppStatus, contentDownloadStatus, playbackValidation, logValidation)
             .any { it.optString("status") == "UNKNOWN" }
 
-        val status = when {
+            hasUnknown -> "UNKNOWN"
             !lmxInstalled || contentStatus == "FAIL" || playbackStatus == "FAIL" -> "RED"
             playbackActive && crashFound -> "YELLOW"
             mediaPresent && playbackOld -> "ORANGE"
-            hasUnknown -> "UNKNOWN"
             playbackActive && !crashFound -> "GREEN"
             else -> "RED"
         }
@@ -652,6 +652,7 @@ class MainActivity : Activity() {
             Crash Logs: ${logs.optInt("crash_log_files_found", 0)}
 
             Overall Status: ${overall.optString("status")}
+            Final Recommendation: ${report.optString("final_recommendation", "Unable to Validate")}
             Recommendation: ${overall.optString("recommendation")}
         """.trimIndent()
     }
@@ -666,7 +667,8 @@ class MainActivity : Activity() {
         checks.put("time_timezone", checkBoolean(report.optString("timezone").isNotBlank(), "System date, time, and timezone are present.", "System date, time, or timezone could not be verified.", "WARNING"))
         checks.put("lmx_app_installed", checkBoolean(report.getBoolean("lmx_app_installed"), "LMX Content app is installed.", "LMX Content app is not installed."))
         checks.put("lmx_app_launch", checkBoolean(report.getBoolean("lmx_app_launchable"), "LMX Content app is launchable.", "LMX Content app cannot be launched."))
-        checks.put("programmatic_vast", checkWebView(report.optString("webview_version"), "Programmatic/VAST playback is ready.", "Programmatic/VAST playback is not ready because WebView is below 120."))
+        checks.put("programmatic_vast", checkProgrammaticVast(report))
+        checks.put("pull_to_content", checkPullToContent(report.optString("lmx_app_version")))
 
         var fails = 0
         var warnings = 0
@@ -688,9 +690,9 @@ class MainActivity : Activity() {
 
     private fun checkAndroid(): JSONObject {
         return when {
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.N -> result("FAIL", "Android version is below 7.")
-            Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q -> result("WARNING", "Android 7 to 10 supports basic playback only.")
-            else -> result("PASS", "Android version is supported.")
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.P -> result("FAIL", "Android version is below 9.")
+            Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q -> result("WARNING", "Android 9 to 10 supports limited deployment.")
+            else -> result("PASS", "Android 11 or above is supported.")
         }
     }
 
@@ -705,14 +707,71 @@ class MainActivity : Activity() {
     private fun checkStorage(storageGb: Double): JSONObject {
         return when {
             storageGb < 2 -> result("FAIL", "Available storage is below 2GB.")
-            storageGb <= 5 -> result("WARNING", "Available storage is between 2GB and 5GB.")
-            else -> result("PASS", "Available storage is sufficient.")
+            storageGb < 5 -> result("WARNING", "Available storage is between 2GB and 4.99GB.")
+            else -> result("PASS", "Available storage is 5GB or above.")
         }
     }
 
-    private fun checkWebView(version: String, pass: String = "Android System WebView is ready.", fail: String = "Android System WebView is below version 120."): JSONObject {
+    private fun checkWebView(version: String): JSONObject {
         val major = version.takeWhile { it.isDigit() }.toIntOrNull() ?: 0
-        return if (major < 120) result("FAIL", fail) else result("PASS", pass)
+        return when {
+            major < 100 -> result("FAIL", "Android System WebView is below version 100.")
+            major < 110 -> result("WARNING", "Android System WebView is between version 100 and 109.")
+            else -> result("PASS", "Android System WebView is version 110 or above.")
+        }
+    }
+
+    private fun checkProgrammaticVast(report: JSONObject): JSONObject {
+        val webviewMajor = report.optString("webview_version").takeWhile { it.isDigit() }.toIntOrNull() ?: 0
+        val androidReady = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+        val ramReady = report.optDouble("ram_total_gb", 0.0) >= 3.0
+        val networkReady = report.optBoolean("internet_connected", false)
+        val vastPlaybackSuccess = report.optBoolean("vast_playback_success", false) ||
+            report.optBoolean("programmatic_vast_playback_success", false)
+        return when {
+            vastPlaybackSuccess -> result("PASS", "Successful VAST playback validation was detected.")
+            !androidReady || webviewMajor < 100 -> result("FAIL", "Programmatic/VAST readiness requires Android 11+ and WebView 100+.")
+            webviewMajor >= 110 && ramReady && networkReady -> result("PASS", "Programmatic/VAST readiness requirements are met.")
+            webviewMajor in 100..109 -> result("WARNING", "Programmatic/VAST readiness is limited with WebView 100 to 109.")
+            else -> result("WARNING", "Programmatic/VAST readiness has unverified RAM, network, or WebView requirements.")
+        }
+    }
+
+    private fun checkPullToContent(version: String): JSONObject {
+        return if (versionAtLeast(version, "2.9.1.2")) {
+            result("WARNING", "Android LMX version supports Pull To Content, but pairing cannot be verified.")
+        } else {
+            result("FAIL", "Android LMX version is below 2.9.1.2 native.")
+        }
+    }
+
+    private fun finalRecommendation(deviceStatus: String, overallHealth: String): String {
+        return when {
+            overallHealth == "UNKNOWN" -> "Unable to Validate"
+            deviceStatus == "Approved" && overallHealth == "GREEN" -> "Certified for LMX Content"
+            deviceStatus == "Approved with Limitation" || overallHealth == "YELLOW" -> "Certified with Limitation"
+            deviceStatus == "Not Recommended" || overallHealth == "ORANGE" || overallHealth == "RED" -> "Not Recommended"
+            else -> "Unable to Validate"
+        }
+    }
+
+    private fun versionAtLeast(value: String, minimum: String): Boolean {
+        val current = versionParts(value)
+        val required = versionParts(minimum)
+        val maxSize = maxOf(current.size, required.size)
+        val paddedCurrent = current + List(maxSize - current.size) { 0 }
+        val paddedRequired = required + List(maxSize - required.size) { 0 }
+        return paddedCurrent.zip(paddedRequired).firstOrNull { it.first != it.second }?.let {
+            it.first > it.second
+        } ?: true
+    }
+
+    private fun versionParts(value: String): List<Int> {
+        return value.lowercase(Locale.US)
+            .replace("native", "")
+            .trim()
+            .split(".")
+            .map { part -> part.filter { it.isDigit() }.toIntOrNull() ?: 0 }
     }
 
     private fun checkBoolean(value: Boolean, pass: String, fail: String, failStatus: String = "FAIL"): JSONObject {

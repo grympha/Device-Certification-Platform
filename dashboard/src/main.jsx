@@ -12,6 +12,7 @@ const sampleReport = {
   created_at: "2026-06-09T13:00:00Z",
   final_status: "Not Recommended",
   score: 25,
+  final_recommendation: "Not Recommended",
   summary: "Device is not recommended for LMX Content deployment until failed checks are resolved.",
   recommendations:
     "Available storage is below 2GB. Android System WebView is below version 120. Programmatic/VAST playback is not ready because WebView is below 120. Resolve failed checks and review limitations before production deployment.",
@@ -62,19 +63,22 @@ const sampleReport = {
     lmx_app_version: "1.4.2",
     ram_total_gb: 4,
     storage_available_gb: 1.2,
+    storage_access_status: "GRANTED",
+    final_recommendation: "Not Recommended",
     checks: {
       android_version: { status: "PASS", message: "Android version is supported." },
       ram: { status: "PASS", message: "RAM is sufficient." },
       storage: { status: "FAIL", message: "Available storage is below 2GB." },
-      webview: { status: "FAIL", message: "Android System WebView is below version 120." },
+      webview: { status: "WARNING", message: "Android System WebView is between version 100 and 109." },
       network: { status: "PASS", message: "Internet connectivity is available." },
       time_timezone: { status: "PASS", message: "System date, time, and timezone are present." },
       lmx_app_installed: { status: "PASS", message: "LMX Content app is installed." },
       lmx_app_launch: { status: "PASS", message: "LMX Content app is launchable." },
       programmatic_vast: {
-        status: "FAIL",
-        message: "Programmatic/VAST playback is not ready because WebView is below 120."
-      }
+        status: "WARNING",
+        message: "Programmatic/VAST readiness is limited with WebView 100 to 109."
+      },
+      pull_to_content: { status: "FAIL", message: "Android LMX version is below 2.9.1.2 native." }
     }
   }
 };
@@ -456,6 +460,9 @@ function ReportPage({ device, report }) {
   const playback = healthSection(report, raw, "playback_validation");
   const logs = healthSection(report, raw, "log_validation");
   const overallStatus = report.overall_health_status || raw.overall_health_status || "UNKNOWN";
+  const storageAccessStatus = raw.storage_access_status || valueOf(content, "storage_access_status") || valueOf(playback, "storage_access_status") || valueOf(logs, "storage_access_status") || "UNKNOWN";
+  const healthUnavailable = storageAccessStatus === "DENIED";
+  const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status, overallStatus);
   const recommendation = report.troubleshooting_recommendation || raw.troubleshooting_recommendation || report.recommendations;
 
   return (
@@ -466,10 +473,20 @@ function ReportPage({ device, report }) {
       </div>
       <div className="report-head">
         <div>
-          <p className="eyebrow">Compatibility Result</p>
+          <p className="eyebrow">Device Certification Result</p>
           <h3>{report.final_status}</h3>
         </div>
         <div className="score">{report.score}</div>
+      </div>
+      <div className="result-grid">
+        <section>
+          <span>Overall Health Status</span>
+          <HealthPill status={overallStatus} />
+        </section>
+        <section>
+          <span>Final Recommendation</span>
+          <strong>{finalRecommendation}</strong>
+        </section>
       </div>
       <dl>
         <dt>Media Owner / Client</dt><dd>{displayOwner(device, raw)}</dd>
@@ -482,8 +499,21 @@ function ReportPage({ device, report }) {
         <dt>Storage Available</dt><dd>{raw.storage_available_gb}GB</dd>
         <dt>LMX Content Version</dt><dd>{raw.lmx_app_version || "Not detected"}</dd>
       </dl>
+      <h3>Device Compatibility</h3>
+      <div className="check-grid">
+        {Object.entries(checkLabels).map(([key, label]) => (
+          <CheckRow key={key} label={label} check={raw.checks?.[key]} />
+        ))}
+      </div>
       <h3>LMX Playback Health</h3>
-      <div className="health-grid">
+      {healthUnavailable ? (
+        <section className="health-unavailable">
+          <strong>LMX Playback Health Unavailable</strong>
+          <p>Storage access was not granted. The platform cannot read LMX media, audit, or log files.</p>
+          <HealthPill status="UNKNOWN" />
+        </section>
+      ) : (
+        <div className="health-grid">
         <HealthCard title="LMX App Status" status={statusOf(lmxApp)} items={[
           ["Installed", yesNo(valueOf(lmxApp, "installed"))],
           ["Version", valueOf(lmxApp, "version") || valueOf(lmxApp, "version_name") || raw.lmx_app_version || "-"],
@@ -515,12 +545,13 @@ function ReportPage({ device, report }) {
           <p>{healthSummary(report.overall_health) || healthSummary(raw.overall_health) || recommendation}</p>
         </section>
       </div>
+      )}
       <h3>Failed Checks</h3>
       <ListOrNone items={failed.map((check) => check.message)} />
       <h3>Limitations</h3>
       <ListOrNone items={limitations.map((check) => check.message)} />
       <h3>Recommended Action</h3>
-      <p>{recommendation}</p>
+      <p><strong>{finalRecommendation}.</strong> {recommendation}</p>
       <div className="export-row">
         <a href={`${API_BASE_URL}/api/export/${report.id}?format=html`} target="_blank" rel="noreferrer">HTML</a>
         <a href={`${API_BASE_URL}/api/export/${report.id}?format=json`} target="_blank" rel="noreferrer">JSON</a>
@@ -558,7 +589,8 @@ const checkLabels = {
   time_timezone: "Time/Timezone",
   lmx_app_installed: "LMX App Installed",
   lmx_app_launch: "LMX App Launch",
-  programmatic_vast: "Programmatic/VAST Readiness"
+  programmatic_vast: "Programmatic/VAST Readiness",
+  pull_to_content: "Pull To Content Readiness"
 };
 
 function CheckRow({ label, check }) {
@@ -637,6 +669,14 @@ function healthSummary(value) {
   if (!value) return "";
   if (typeof value === "string") return value;
   return value.recommendation || value.message || value.status || "";
+}
+
+function finalRecommendationFrom(deviceStatus, overallHealth) {
+  if (overallHealth === "UNKNOWN") return "Unable to Validate";
+  if (deviceStatus === "Approved" && overallHealth === "GREEN") return "Certified for LMX Content";
+  if (deviceStatus === "Approved with Limitation" || overallHealth === "YELLOW") return "Certified with Limitation";
+  if (deviceStatus === "Not Recommended" || ["ORANGE", "RED"].includes(overallHealth)) return "Not Recommended";
+  return "Unable to Validate";
 }
 
 function formatMalaysiaTime(timestamp) {

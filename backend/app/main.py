@@ -27,6 +27,7 @@ REPORT_HEALTH_COLUMNS = {
     "overall_health": "TEXT",
     "troubleshooting_recommendation": "TEXT",
     "device_compatibility": "TEXT",
+    "final_recommendation": "VARCHAR(100)",
 }
 
 
@@ -93,7 +94,9 @@ def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dic
     raw_with_checks = dict(payload)
     raw_with_checks["checks"] = evaluation["checks"]
     raw_with_checks["media_owner"] = device.media_owner
+    raw_with_checks["final_recommendation"] = evaluation["final_recommendation"]
     health_fields = _extract_health_fields(payload)
+    health_fields["device_compatibility"] = evaluation
     raw_with_checks.update({key: value for key, value in health_fields.items() if value is not None})
 
     report = DiagnosticReport(
@@ -112,6 +115,7 @@ def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dic
         overall_health=_json_or_none(health_fields["overall_health"]),
         troubleshooting_recommendation=health_fields["troubleshooting_recommendation"],
         device_compatibility=_json_or_none(health_fields["device_compatibility"]),
+        final_recommendation=evaluation["final_recommendation"],
     )
     db.add(report)
     db.commit()
@@ -129,6 +133,7 @@ def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dic
         "overall_health": health_fields["overall_health"],
         "troubleshooting_recommendation": health_fields["troubleshooting_recommendation"],
         "device_compatibility": health_fields["device_compatibility"],
+        "final_recommendation": evaluation["final_recommendation"],
     }
 
 
@@ -239,6 +244,7 @@ def _report_out(report: DiagnosticReport) -> ReportOut:
         overall_health=_json_from_column(report.overall_health, raw.get("overall_health")),
         troubleshooting_recommendation=report.troubleshooting_recommendation or raw.get("troubleshooting_recommendation"),
         device_compatibility=_json_from_column(report.device_compatibility, raw.get("device_compatibility")),
+        final_recommendation=report.final_recommendation or raw.get("final_recommendation"),
     )
 
 
@@ -342,6 +348,8 @@ def _readable_bytes(value: Any) -> str | None:
 def _html_report(report: DiagnosticReport) -> str:
     raw = json.loads(report.raw_json)
     checks = raw.get("checks", {})
+    overall_health_status = report.overall_health_status or raw.get("overall_health_status") or "UNKNOWN"
+    final_recommendation = report.final_recommendation or raw.get("final_recommendation") or "Unable to Validate"
     failed = [value["message"] for value in checks.values() if value.get("status") == "FAIL"]
     limitations = [value["message"] for value in checks.values() if value.get("status") == "WARNING"]
     failed_html = "".join(f"<li>{item}</li>" for item in failed) or "<li>None</li>"
@@ -365,6 +373,9 @@ def _html_report(report: DiagnosticReport) -> str:
         <h1>LMX Device Certification Report</h1>
         <p class="status">{report.final_status} - Score {report.score}</p>
         <table>
+          <tr><th>Device Certification Result</th><td>{report.final_status}</td></tr>
+          <tr><th>Overall Health Status</th><td>{overall_health_status}</td></tr>
+          <tr><th>Final Recommendation</th><td>{final_recommendation}</td></tr>
           <tr><th>Device</th><td>{raw.get("device_name", "")}</td></tr>
           <tr><th>Media Owner / Client</th><td>{raw.get("media_owner") or raw.get("client_name") or "Unassigned"}</td></tr>
           <tr><th>Platform</th><td>{raw.get("platform", "")}</td></tr>

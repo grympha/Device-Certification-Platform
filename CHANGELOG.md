@@ -78,3 +78,10 @@
 
 - Added a dashboard `Download APK` button for installing the Android Agent on test devices.
 - Added the debug APK to dashboard static assets at `dashboard/public/downloads/app-debug.apk`.
+
+## 0.1.11
+
+- Updated Device Compatibility rules for Android version, RAM, storage, WebView, Programmatic/VAST, and Pull To Content readiness.
+- Separated Device Certification Result, LMX Playback Health, and Final Recommendation in backend and dashboard output.
+- Added `final_recommendation` to report responses.
+- Updated dashboard behavior so denied storage access shows `LMX Playback Health Unavailable` instead of failed playback health cards.

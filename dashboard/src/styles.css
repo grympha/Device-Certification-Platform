@@ -478,6 +478,44 @@ tbody tr.selected {
   line-height: 1.45;
 }
 
+.health-unavailable {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #dce3ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.health-unavailable p {
+  margin-bottom: 0;
+  color: #435260;
+  line-height: 1.45;
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.result-grid section {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dce3ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.result-grid span {
+  color: #5b6b78;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .health-pill {
   display: inline-flex;
   align-items: center;
@@ -636,6 +674,10 @@ li {
   .apk-download-strip {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .result-grid {
+    grid-template-columns: 1fr;
   }
 
   h1 {

@@ -13,13 +13,39 @@ LMX Playback Health fields are optional and backwards compatible. New Android Ag
   "playback_validation": {},
   "log_validation": {},
   "overall_health_status": "YELLOW",
-  "overall_health": "Playback active but crash logs found",
+  "overall_health": {
+    "status": "YELLOW",
+    "recommendation": "Playback active but crash logs found"
+  },
+  "storage_access_status": "GRANTED",
+  "final_recommendation": "Certified with Limitation",
   "troubleshooting_recommendation": "Review crash logs.",
   "device_compatibility": {}
 }
 ```
 
-Missing health fields are returned as `null` or `UNKNOWN`.
+Missing health fields are returned as `null` or `UNKNOWN`. If storage access is denied by Android, file-based health sections should not be treated as certification failures. The dashboard displays `LMX Playback Health Unavailable`, Overall Health `UNKNOWN`, and Final Recommendation `Unable to Validate`.
+
+## Certification Outcomes
+
+The API separates:
+
+- `final_status`: Device Certification Result.
+- `overall_health_status`: LMX Playback Health result.
+- `final_recommendation`: deployment recommendation.
+
+Device Certification Result values:
+
+- `Approved`
+- `Approved with Limitation`
+- `Not Recommended`
+
+Final Recommendation values:
+
+- `Certified for LMX Content`
+- `Certified with Limitation`
+- `Not Recommended`
+- `Unable to Validate`
 
 ## GET /api/devices
 
@@ -83,6 +109,7 @@ Report detail responses include persisted health sections:
 - `overall_health`
 - `troubleshooting_recommendation`
 - `device_compatibility`
+- `final_recommendation`
 
 ## GET /api/export/{id}
 
