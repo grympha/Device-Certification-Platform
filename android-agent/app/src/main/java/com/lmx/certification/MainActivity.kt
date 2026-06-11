@@ -52,10 +52,16 @@ class MainActivity : Activity() {
     private var lastUploadStatus = "Not uploaded"
     private var lastUploadError = ""
     private var waitingForStoragePermission = false
+    private val permissionFlowMarkers = listOf(
+        "MANAGE_EXTERNAL_STORAGE",
+        "ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
+        "ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION"
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+        logPermissionFlowMarkers()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
             showStoragePermissionBanner()
         }
@@ -66,6 +72,12 @@ class MainActivity : Activity() {
         super.onResume()
         waitingForStoragePermission = false
         if (this::status.isInitialized) {
+            val storageAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Environment.isExternalStorageManager()
+            } else {
+                hasStorageAccess()
+            }
+            updateStorageAccessUi(storageAccess)
             runDiagnostics()
         }
     }
@@ -942,6 +954,10 @@ class MainActivity : Activity() {
             Last diagnostic time: $lastDiagnosticTime
             Last upload status: $lastUploadStatus$errorLine
         """.trimIndent()
+    }
+
+    private fun logPermissionFlowMarkers() {
+        Log.i(logTag, "Storage permission flow markers: ${permissionFlowMarkers.joinToString(", ")}")
     }
 
     private fun isOnline(): Boolean {
