@@ -64,14 +64,6 @@ button.secondary {
   gap: 16px;
 }
 
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
 .download-apk-button {
   display: inline-flex;
   align-items: center;
@@ -639,11 +631,6 @@ li {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .topbar-actions {
-    width: 100%;
-    justify-content: flex-start;
   }
 
   .apk-download-strip {

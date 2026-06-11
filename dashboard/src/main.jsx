@@ -229,15 +229,9 @@ function App() {
           <p className="eyebrow">LMX Device Certification Platform</p>
           <h1>Device Readiness Dashboard</h1>
         </div>
-        <div className="topbar-actions">
-          <a className="download-apk-button" href={APK_DOWNLOAD_URL} download="lmx-android-agent-debug.apk">
-            <Download size={18} />
-            Download APK
-          </a>
-          <button className="icon-button" onClick={refresh} title="Refresh">
-            <RefreshCw size={18} />
-          </button>
-        </div>
+        <button className="icon-button" onClick={refresh} title="Refresh">
+          <RefreshCw size={18} />
+        </button>
       </header>
 
       <section className="status-row">
