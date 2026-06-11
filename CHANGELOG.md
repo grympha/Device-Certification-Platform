@@ -9,6 +9,8 @@
 - Removed the Windows app's detailed local dashboard sections so the web dashboard remains the main review surface.
 - Added Windows Agent download support in the dashboard Certification Agents actions.
 - Fixed Windows dashboard compatibility labels, Windows version display, custom-built PC manufacturer/model display, RAM recommendation wording, and Windows-specific LMX guidance.
+- Added a Media Owner / Client filter that narrows the Current Device dropdown and auto-selects the latest matching device.
+- Updated Device Information rows to use one consistent platform icon per report type.
 
 ## 0.2.0
 

@@ -283,6 +283,8 @@ or:
 
 If both are present, `media_owner` is used. If neither is present, the dashboard shows `Unassigned`.
 
+The dashboard includes a `Media Owner / Client` filter beside the `Current Device` selector. Selecting a media owner filters the device dropdown to that owner/client and automatically selects the most recent matching device. Choose `All Media Owners / Clients` to show every device again.
+
 You can edit the selected device in the dashboard with `Edit Client`, or call:
 
 ```http

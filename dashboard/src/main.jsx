@@ -24,6 +24,7 @@ import "./styles.css";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const APK_DOWNLOAD_URL = "/downloads/app-debug.apk";
 const WINDOWS_AGENT_DOWNLOAD_URL = "/downloads/LMX-Windows-Certification.exe";
+const ALL_MEDIA_OWNERS = "__all_media_owners__";
 
 const sampleReport = {
   id: 1,
@@ -125,10 +126,26 @@ function App() {
   const [editingOwner, setEditingOwner] = useState(false);
   const [ownerDraft, setOwnerDraft] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [mediaOwnerFilter, setMediaOwnerFilter] = useState(ALL_MEDIA_OWNERS);
+  const [ownerAutoSelected, setOwnerAutoSelected] = useState(false);
+
+  const mediaOwnerOptions = useMemo(() => {
+    const owners = devices.map((device) => deviceOwnerValue(device)).filter(Boolean);
+    return Array.from(new Set(owners)).sort((a, b) => a.localeCompare(b));
+  }, [devices]);
+
+  const sortedDevices = useMemo(() => sortDevicesByLatest(devices), [devices]);
+
+  const filteredDevices = useMemo(
+    () => mediaOwnerFilter === ALL_MEDIA_OWNERS
+      ? sortedDevices
+      : sortedDevices.filter((device) => deviceOwnerValue(device) === mediaOwnerFilter),
+    [mediaOwnerFilter, sortedDevices]
+  );
 
   const selectedDevice = useMemo(
-    () => devices.find((device) => device.id === selectedDeviceId) || devices[0],
-    [devices, selectedDeviceId]
+    () => filteredDevices.find((device) => device.id === selectedDeviceId) || filteredDevices[0] || null,
+    [filteredDevices, selectedDeviceId]
   );
 
   async function refresh() {
@@ -137,9 +154,8 @@ function App() {
       if (!deviceResponse.ok) throw new Error("API unavailable");
       const nextDevices = await deviceResponse.json();
       setApiOnline(true);
+      setOwnerAutoSelected(false);
       setDevices(nextDevices.length ? nextDevices : [sampleDevice]);
-      const nextSelected = (selectedDeviceId && nextDevices.find((device) => device.id === selectedDeviceId)) || nextDevices[0];
-      if (nextSelected) await loadDevice(nextSelected.id);
     } catch {
       setApiOnline(false);
       setDevices([sampleDevice]);
@@ -194,6 +210,7 @@ function App() {
       const updated = await response.json();
       setDeviceDetail((current) => ({ ...current, media_owner: updated.media_owner }));
       setDevices((current) => current.map((device) => (device.id === updated.id ? updated : device)));
+      setMediaOwnerFilter(updated.media_owner || ALL_MEDIA_OWNERS);
       setEditingOwner(false);
       setSaveMessage("Client saved.");
     } catch (error) {
@@ -206,10 +223,40 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (mediaOwnerFilter !== ALL_MEDIA_OWNERS && mediaOwnerOptions.length && !mediaOwnerOptions.includes(mediaOwnerFilter)) {
+      setMediaOwnerFilter(ALL_MEDIA_OWNERS);
+      return;
+    }
+    if (apiOnline && mediaOwnerOptions.length === 1 && mediaOwnerFilter === ALL_MEDIA_OWNERS && !ownerAutoSelected) {
+      setMediaOwnerFilter(mediaOwnerOptions[0]);
+      setOwnerAutoSelected(true);
+    }
+  }, [apiOnline, mediaOwnerFilter, mediaOwnerOptions, ownerAutoSelected]);
+
+  useEffect(() => {
     if (selectedDevice?.id && selectedDevice.id !== deviceDetail?.id) {
       loadDevice(selectedDevice.id);
     }
-  }, [selectedDevice?.id, deviceDetail?.id]);
+    if (!filteredDevices.length) {
+      setSelectedDeviceId(null);
+      setEditingOwner(false);
+      setSaveMessage("");
+    }
+  }, [selectedDevice?.id, deviceDetail?.id, filteredDevices.length]);
+
+  function changeMediaOwnerFilter(value) {
+    setOwnerAutoSelected(true);
+    setMediaOwnerFilter(value);
+    setEditingOwner(false);
+    setSaveMessage("");
+    const nextDevices = value === ALL_MEDIA_OWNERS
+      ? sortedDevices
+      : sortedDevices.filter((device) => deviceOwnerValue(device) === value);
+    const currentStillVisible = nextDevices.some((device) => device.id === selectedDeviceId);
+    if (!currentStillVisible) {
+      setSelectedDeviceId(nextDevices[0]?.id || null);
+    }
+  }
 
   return (
     <main className="app-shell">
@@ -225,10 +272,23 @@ function App() {
         </div>
         <div className="header-actions">
           <label>
+            <span>Media Owner / Client</span>
+            <select value={mediaOwnerFilter} onChange={(event) => changeMediaOwnerFilter(event.target.value)}>
+              <option value={ALL_MEDIA_OWNERS}>All Media Owners / Clients</option>
+              {mediaOwnerOptions.map((owner) => (
+                <option key={owner} value={owner}>{owner}</option>
+              ))}
+            </select>
+          </label>
+          <label>
             <span>Current Device</span>
-            <select value={selectedDevice?.id || ""} onChange={(event) => loadDevice(event.target.value)}>
-              {devices.map((device) => (
-                <option key={device.id} value={device.id}>{device.device_name}</option>
+            <select
+              value={selectedDevice?.id || ""}
+              onChange={(event) => loadDevice(event.target.value)}
+              disabled={!filteredDevices.length}
+            >
+              {filteredDevices.map((device) => (
+                <option key={device.id} value={device.id}>{deviceLabel(device)}</option>
               ))}
             </select>
           </label>
@@ -253,29 +313,37 @@ function App() {
         </div>
       </header>
 
-      <ExecutiveSummary report={report} apiOnline={apiOnline} />
-      <CertificationConclusion report={report} />
-      <div className="split-grid split-grid-halves">
-        <DeviceInformation
-          device={deviceDetail}
-          report={report}
-          editingOwner={editingOwner}
-          ownerDraft={ownerDraft}
-          saveMessage={saveMessage}
-          onEdit={() => {
-            setOwnerDraft(displayOwner(deviceDetail) === "Unassigned" ? "" : displayOwner(deviceDetail));
-            setEditingOwner(true);
-            setSaveMessage("");
-          }}
-          onCancel={() => setEditingOwner(false)}
-          onOwnerChange={setOwnerDraft}
-          onSave={saveOwner}
-        />
-        <CompatibilityAssessment report={report} />
-      </div>
-      <DeviceReportSummary report={report} />
-      <DeploymentReadiness report={report} />
-      <DeviceHistory device={deviceDetail} report={report} onSelectReport={loadReport} />
+      {!filteredDevices.length ? (
+        <section className="section-card empty-filter-card">
+          <h2>No devices found for this Media Owner / Client.</h2>
+        </section>
+      ) : (
+        <>
+          <ExecutiveSummary report={report} apiOnline={apiOnline} />
+          <CertificationConclusion report={report} />
+          <div className="split-grid split-grid-halves">
+            <DeviceInformation
+              device={deviceDetail}
+              report={report}
+              editingOwner={editingOwner}
+              ownerDraft={ownerDraft}
+              saveMessage={saveMessage}
+              onEdit={() => {
+                setOwnerDraft(displayOwner(deviceDetail) === "Unassigned" ? "" : displayOwner(deviceDetail));
+                setEditingOwner(true);
+                setSaveMessage("");
+              }}
+              onCancel={() => setEditingOwner(false)}
+              onOwnerChange={setOwnerDraft}
+              onSave={saveOwner}
+            />
+            <CompatibilityAssessment report={report} />
+          </div>
+          <DeviceReportSummary report={report} />
+          <DeploymentReadiness report={report} />
+          <DeviceHistory device={deviceDetail} report={report} onSelectReport={loadReport} />
+        </>
+      )}
 
       <footer className="dashboard-footer">
         <strong>Developed by Grympha</strong>
@@ -360,6 +428,7 @@ function SummaryCard({ icon, label, value, helper, tone = "", wide = false, chil
 function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessage, onEdit, onCancel, onOwnerChange, onSave }) {
   const raw = report.raw_json || {};
   const rows = deviceInfoRows(raw, device, report);
+  const platform = raw.platform || device.platform;
 
   return (
     <section className="section-card">
@@ -387,7 +456,7 @@ function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessa
       {saveMessage && <p className="save-message">{saveMessage}</p>}
       <div className="info-grid">
         {rows.map(([label, value]) => (
-          <InfoItem key={label} label={label} value={value || "-"} />
+          <InfoItem key={label} label={label} value={value || "-"} platform={platform} />
         ))}
       </div>
     </section>
@@ -526,10 +595,11 @@ function SectionHeader({ title, children }) {
   );
 }
 
-function InfoItem({ label, value }) {
+function InfoItem({ label, value, platform }) {
+  const Icon = isWindowsPlatform(platform) ? Monitor : Smartphone;
   return (
     <div className="info-item">
-      {label.toLowerCase().includes("windows") || label.toLowerCase().includes("computer") ? <Monitor size={15} /> : <Smartphone size={15} />}
+      <Icon size={15} />
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -693,8 +763,26 @@ function isWindows(raw = {}) {
   return String(raw.platform || "").toLowerCase() === "windows";
 }
 
+function isWindowsPlatform(platform = "") {
+  return String(platform || "").toLowerCase() === "windows";
+}
+
 function displayOwner(device = {}, raw = {}) {
-  return device.media_owner || raw.media_owner || raw.client_name || "Unassigned";
+  return device.media_owner || raw.media_owner || raw.media_owner_client || raw.client_name || "Unassigned";
+}
+
+function deviceOwnerValue(device = {}) {
+  const raw = device.reports?.[0]?.raw_json || {};
+  return displayOwner(device, raw);
+}
+
+function deviceLabel(device = {}) {
+  const raw = device.reports?.[0]?.raw_json || {};
+  return raw.device_name || raw.computer_name || device.device_name || raw.model || device.model || "Unknown Device";
+}
+
+function sortDevicesByLatest(items = []) {
+  return [...items].sort((a, b) => new Date(b.last_seen || 0) - new Date(a.last_seen || 0));
 }
 
 function finalRecommendationFrom(deviceStatus) {
