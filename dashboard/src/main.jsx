@@ -236,24 +236,28 @@ function App() {
       </header>
 
       <ExecutiveSummary report={report} apiOnline={apiOnline} />
-      <DeviceInformation
-        device={deviceDetail}
-        report={report}
-        editingOwner={editingOwner}
-        ownerDraft={ownerDraft}
-        saveMessage={saveMessage}
-        onEdit={() => {
-          setOwnerDraft(displayOwner(deviceDetail) === "Unassigned" ? "" : displayOwner(deviceDetail));
-          setEditingOwner(true);
-          setSaveMessage("");
-        }}
-        onCancel={() => setEditingOwner(false)}
-        onOwnerChange={setOwnerDraft}
-        onSave={saveOwner}
-      />
-      <CompatibilityAssessment report={report} />
-      <DeviceReportSummary report={report} />
-      <CertificationConclusion report={report} />
+      <div className="split-grid split-grid-halves">
+        <DeviceInformation
+          device={deviceDetail}
+          report={report}
+          editingOwner={editingOwner}
+          ownerDraft={ownerDraft}
+          saveMessage={saveMessage}
+          onEdit={() => {
+            setOwnerDraft(displayOwner(deviceDetail) === "Unassigned" ? "" : displayOwner(deviceDetail));
+            setEditingOwner(true);
+            setSaveMessage("");
+          }}
+          onCancel={() => setEditingOwner(false)}
+          onOwnerChange={setOwnerDraft}
+          onSave={saveOwner}
+        />
+        <CompatibilityAssessment report={report} />
+      </div>
+      <div className="split-grid split-grid-summary">
+        <DeviceReportSummary report={report} />
+        <CertificationConclusion report={report} />
+      </div>
       <DeviceHistory device={deviceDetail} report={report} onSelectReport={loadReport} />
 
       <footer className="dashboard-footer">
@@ -270,7 +274,7 @@ function ExecutiveSummary({ report, apiOnline }) {
   const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
   return (
     <section className="section-card executive-summary">
-      <SectionHeader eyebrow="Section 1" title="Executive Summary">
+      <SectionHeader title="Executive Summary">
         <div className="backend-status">
           <span className={apiOnline ? "dot online" : "dot"} />
           {apiOnline ? "Backend Connected" : "Showing Sample Data"}
@@ -342,14 +346,7 @@ function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessa
 
   return (
     <section className="section-card">
-      <SectionHeader eyebrow="Section 2" title="Device Information">
-        <div className="section-actions">
-          <button className="secondary compact-button">
-            <Eye size={15} />
-            View Details
-          </button>
-        </div>
-      </SectionHeader>
+      <SectionHeader title="Device Information" />
       <div className="owner-row compact-owner">
         <div>
           <span>Media Owner / Client</span>
@@ -382,12 +379,7 @@ function CompatibilityAssessment({ report }) {
   const checks = report.raw_json?.checks || {};
   return (
     <section className="section-card">
-      <SectionHeader eyebrow="Section 3" title="Device Compatibility">
-        <button className="secondary compact-button">
-          <Eye size={15} />
-          View Details
-        </button>
-      </SectionHeader>
+      <SectionHeader title="Device Compatibility" />
       <div className="assessment-grid">
         {[...deviceCompatibilityKeys, ...lmxReadinessKeys].map((key) => (
           <AssessmentCard key={key} label={checkLabels[key]} check={checks[key]} />
@@ -402,12 +394,7 @@ function DeviceReportSummary({ report }) {
   const summary = report.device_report_summary || raw.device_report_summary || buildDeviceReportSummary(report, raw);
   return (
     <section className="section-card report-summary-section">
-      <SectionHeader eyebrow="Section 4" title="Device Report Summary">
-        <button className="secondary compact-button">
-          <Eye size={15} />
-          View Details
-        </button>
-      </SectionHeader>
+      <SectionHeader title="Device Report Summary" />
       <div className="summary-focus">
         <span>Overall Summary</span>
         <p>{summary.overall_summary || "-"}</p>
@@ -427,7 +414,7 @@ function CertificationConclusion({ report }) {
   const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
   return (
     <section className={`section-card conclusion-card ${statusTone(report.final_status)}`}>
-      <SectionHeader eyebrow="Section 5" title="Certification Conclusion" />
+      <SectionHeader title="Certification Conclusion" />
       <strong>{finalRecommendation}</strong>
       <p>{conclusionText(report.final_status)}</p>
     </section>
@@ -438,15 +425,15 @@ function DeviceHistory({ device, report, onSelectReport }) {
   const reports = device.reports?.length ? device.reports : [report];
   return (
     <section className="section-card history-card">
-      <SectionHeader eyebrow="Section 6" title="Device History" />
+      <SectionHeader title="Device History" />
       <div className="history-table-wrap">
         <table className="history-table">
           <thead>
             <tr>
               <th>Date</th>
               <th>Device</th>
-              <th>Certification Result</th>
-              <th>Certification Score</th>
+              <th>Result</th>
+              <th>Score</th>
               <th>Recommendation</th>
               <th>Action</th>
             </tr>
@@ -496,11 +483,10 @@ function ExportActions({ reportId, iconOnly = false }) {
   );
 }
 
-function SectionHeader({ eyebrow, title, children }) {
+function SectionHeader({ title, children }) {
   return (
     <div className="section-header">
       <div>
-        <span>{eyebrow}</span>
         <h2>{title}</h2>
       </div>
       {children}
