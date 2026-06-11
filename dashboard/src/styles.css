@@ -512,8 +512,78 @@ li {
 
 .export-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 18px;
+}
+
+.export-row a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid #cdd7e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.report-actions {
+  margin: 12px 0 16px;
+}
+
+.report-actions a:first-child {
+  border-color: #172026;
+  background: #172026;
+  color: #ffffff;
+}
+
+.report-summary {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid #dce3ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.report-summary h3 {
+  margin: 0 0 4px;
+}
+
+.summary-block {
+  padding: 10px;
+  border: 1px solid #e2e8ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.summary-block span {
+  display: block;
+  margin-bottom: 6px;
+  color: #5b6b78;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.summary-block p,
+.summary-block ul {
+  margin-bottom: 0;
+}
+
+.summary-block.pass {
+  border-color: #b6e3ce;
+}
+
+.summary-block.warning {
+  border-color: #f1d28b;
+}
+
+.summary-block.fail {
+  border-color: #efb0ad;
 }
 
 .history-list {

@@ -13,6 +13,34 @@ const sampleReport = {
   final_status: "Not Recommended",
   score: 50,
   final_recommendation: "Not Recommended",
+  device_report_summary: {
+    overall_summary: "Device is not recommended for LMX Content deployment until failed checks are resolved.",
+    good_points: [
+      "Android 11 or above is supported.",
+      "RAM is sufficient.",
+      "Internet connectivity is available.",
+      "LMX Content app is installed.",
+      "LMX Content app is launchable."
+    ],
+    warning_points: [
+      "Android System WebView is between version 100 and 109.",
+      "Programmatic/VAST readiness is limited with WebView 100 to 109."
+    ],
+    failed_points: [
+      "Available storage is below 2GB.",
+      "Android LMX version is below 2.9.1.2 native."
+    ],
+    likely_causes: [
+      "Low available storage can prevent updates, cached content, or normal app operation.",
+      "Older Android System WebView versions may have limited compatibility with HTML, URL, or VAST playback.",
+      "The installed LMX Content version may be below the Pull To Content requirement."
+    ],
+    recommended_actions: [
+      "Free device storage or use a device with at least 5GB available storage.",
+      "Update Android System WebView where possible.",
+      "Update LMX Content to Android version 2.9.1.2 native or newer."
+    ]
+  },
   summary: "Device is not recommended for LMX Content deployment until failed checks are resolved.",
   recommendations:
     "Available storage is below 2GB. Android LMX version is below 2.9.1.2 native. Resolve failed checks and review limitations before production deployment.",
@@ -403,6 +431,7 @@ function ReportPage({ device, report }) {
   const failed = checks.filter((check) => check.status === "FAIL");
   const limitations = checks.filter((check) => check.status === "WARNING");
   const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
+  const deviceSummary = report.device_report_summary || raw.device_report_summary || buildDeviceReportSummary(report, raw);
 
   return (
     <section className="panel report">
@@ -423,6 +452,18 @@ function ReportPage({ device, report }) {
           <strong>{finalRecommendation}</strong>
         </section>
       </div>
+      <div className="export-row report-actions">
+        <a href={`${API_BASE_URL}/api/reports/${report.id}/pdf`} target="_blank" rel="noreferrer">
+          <Download size={16} />
+          Download PDF
+        </a>
+        <a href={`${API_BASE_URL}/api/reports/${report.id}/docx`} target="_blank" rel="noreferrer">
+          <FileText size={16} />
+          Download DOCX
+        </a>
+        <button className="secondary" onClick={() => window.print()}>Print Report</button>
+      </div>
+      <DeviceReportSummary summary={deviceSummary} />
       <dl>
         <dt>Media Owner / Client</dt><dd>{displayOwner(device, raw)}</dd>
         <dt>Device</dt><dd>{raw.device_name}</dd>
@@ -453,6 +494,32 @@ function ReportPage({ device, report }) {
         <a href={`${API_BASE_URL}/api/export/${report.id}?format=json`} target="_blank" rel="noreferrer">JSON</a>
       </div>
     </section>
+  );
+}
+
+function DeviceReportSummary({ summary }) {
+  return (
+    <section className="report-summary">
+      <h3>Device Report Summary</h3>
+      <div className="summary-block">
+        <span>Overall Summary</span>
+        <p>{summary.overall_summary || "-"}</p>
+      </div>
+      <SummaryList title="Good Points" items={summary.good_points} tone="pass" />
+      <SummaryList title="Warning Points" items={summary.warning_points} tone="warning" />
+      <SummaryList title="Problem Points" items={summary.failed_points} tone="fail" />
+      <SummaryList title="Likely Causes" items={summary.likely_causes} />
+      <SummaryList title="Recommended Actions" items={summary.recommended_actions} />
+    </section>
+  );
+}
+
+function SummaryList({ title, items = [], tone = "" }) {
+  return (
+    <div className={`summary-block ${tone}`}>
+      <span>{title}</span>
+      <ListOrNone items={items} />
+    </div>
   );
 }
 
@@ -520,6 +587,62 @@ function finalRecommendationFrom(deviceStatus) {
   if (deviceStatus === "Approved") return "Certified for LMX Content";
   if (deviceStatus === "Approved with Limitation") return "Certified with Limitation";
   return "Not Recommended";
+}
+
+function buildDeviceReportSummary(report, raw) {
+  const checks = raw.checks || {};
+  const values = Object.values(checks);
+  return {
+    overall_summary: report.summary || "-",
+    good_points: values.filter((check) => check.status === "PASS").map((check) => check.message),
+    warning_points: values.filter((check) => check.status === "WARNING").map((check) => check.message),
+    failed_points: values.filter((check) => check.status === "FAIL").map((check) => check.message),
+    likely_causes: likelyCauses(checks),
+    recommended_actions: recommendedActions(checks, report.recommendations)
+  };
+}
+
+function likelyCauses(checks) {
+  const map = {
+    android_version: "Android OS version may be below the supported baseline for stable LMX Content deployment.",
+    ram: "Low device memory may limit smooth HTML, URL, or VAST rendering.",
+    storage: "Low available storage can prevent updates, cached content, or normal app operation.",
+    webview: "Older Android System WebView versions may have limited compatibility with HTML, URL, or VAST playback.",
+    network: "Network connectivity may be unavailable or unstable during validation.",
+    time_timezone: "Incorrect device time or timezone can affect scheduled content and reporting.",
+    lmx_app_installed: "LMX Content may not be installed on the device.",
+    lmx_app_launch: "LMX Content may be installed but not launchable from Android.",
+    lmx_version: "The LMX Content version could not be detected.",
+    programmatic_vast: "Programmatic/VAST readiness may be limited by Android version, WebView, RAM, or network state.",
+    pull_to_content: "The installed LMX Content version may be below the Pull To Content requirement."
+  };
+  const items = Object.entries(checks)
+    .filter(([, check]) => ["WARNING", "FAIL"].includes(check.status))
+    .map(([key]) => map[key])
+    .filter(Boolean);
+  return items.length ? Array.from(new Set(items)) : ["No likely causes identified from the current assessment."];
+}
+
+function recommendedActions(checks, recommendations) {
+  const map = {
+    android_version: "Upgrade the device OS or select a device running Android 11 or above where possible.",
+    ram: "Use a device with at least 4GB RAM for best LMX Content readiness.",
+    storage: "Free device storage or use a device with at least 5GB available storage.",
+    webview: "Update Android System WebView where possible.",
+    network: "Confirm the device has stable internet connectivity before deployment.",
+    time_timezone: "Correct the device date, time, and timezone settings.",
+    lmx_app_installed: "Install LMX Content package com.qruize.quad42.media.app.",
+    lmx_app_launch: "Reinstall or update LMX Content, then confirm the app can launch.",
+    lmx_version: "Install a supported LMX Content build and rerun certification.",
+    programmatic_vast: "Update WebView and verify Android version, RAM, and internet connectivity.",
+    pull_to_content: "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer."
+  };
+  const items = Object.entries(checks)
+    .filter(([, check]) => ["WARNING", "FAIL"].includes(check.status))
+    .map(([key]) => map[key])
+    .filter(Boolean);
+  if (items.length) return Array.from(new Set(items));
+  return recommendations ? [recommendations] : ["No action required before deployment."];
 }
 
 function formatMalaysiaTime(timestamp) {

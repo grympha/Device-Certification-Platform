@@ -83,6 +83,8 @@ def evaluate_report(report: dict[str, Any]) -> dict[str, Any]:
     limitations = [check.message for check in checks if check.status == WARNING]
     recommendations = _recommendations(failed, limitations)
     final_recommendation = _final_recommendation(final_status)
+    checks_dict = {check.name: {"status": check.status, "message": check.message} for check in checks}
+    device_report_summary = build_device_report_summary(final_status, checks_dict, recommendations)
 
     return {
         "final_status": final_status,
@@ -90,10 +92,90 @@ def evaluate_report(report: dict[str, Any]) -> dict[str, Any]:
         "summary": _summary(final_status, failed, limitations),
         "recommendations": recommendations,
         "final_recommendation": final_recommendation,
-        "checks": {check.name: {"status": check.status, "message": check.message} for check in checks},
+        "checks": checks_dict,
         "failed_checks": failed,
         "limitations": limitations,
+        "device_report_summary": device_report_summary,
     }
+
+
+def build_device_report_summary(
+    final_status: str,
+    checks: dict[str, Any],
+    recommendations: str | None = None,
+) -> dict[str, Any]:
+    good_points = _messages_for_status(checks, PASS)
+    warning_points = _messages_for_status(checks, WARNING)
+    failed_points = _messages_for_status(checks, FAIL)
+    likely_causes = _likely_causes(checks)
+    recommended_actions = _recommended_actions(checks, recommendations)
+
+    return {
+        "overall_summary": _summary(final_status, failed_points, warning_points),
+        "good_points": good_points,
+        "warning_points": warning_points,
+        "failed_points": failed_points,
+        "likely_causes": likely_causes,
+        "recommended_actions": recommended_actions,
+    }
+
+
+def _messages_for_status(checks: dict[str, Any], status: str) -> list[str]:
+    messages: list[str] = []
+    for check in checks.values():
+        if isinstance(check, dict) and check.get("status") == status:
+            message = str(check.get("message") or "").strip()
+            if message:
+                messages.append(message)
+    return messages
+
+
+def _likely_causes(checks: dict[str, Any]) -> list[str]:
+    causes: list[str] = []
+    cause_map = {
+        "android_version": "Android OS version may be below the supported baseline for stable LMX Content deployment.",
+        "ram": "Low device memory may limit smooth HTML, URL, or VAST rendering.",
+        "storage": "Low available storage can prevent updates, cached content, or normal app operation.",
+        "webview": "Older Android System WebView versions may have limited compatibility with HTML, URL, or VAST playback.",
+        "network": "Network connectivity may be unavailable or unstable during validation.",
+        "time_timezone": "Incorrect device time or timezone can affect scheduled content and reporting.",
+        "lmx_app_installed": "LMX Content may not be installed on the device.",
+        "lmx_app_launch": "LMX Content may be installed but not launchable from Android.",
+        "lmx_version": "The LMX Content version could not be detected.",
+        "programmatic_vast": "Programmatic/VAST readiness may be limited by Android version, WebView, RAM, or network state.",
+        "pull_to_content": "The installed LMX Content version may be below the Pull To Content requirement.",
+    }
+    for key, check in checks.items():
+        if isinstance(check, dict) and check.get("status") in {WARNING, FAIL}:
+            cause = cause_map.get(key)
+            if cause and cause not in causes:
+                causes.append(cause)
+    return causes or ["No likely causes identified from the current assessment."]
+
+
+def _recommended_actions(checks: dict[str, Any], recommendations: str | None) -> list[str]:
+    actions: list[str] = []
+    action_map = {
+        "android_version": "Upgrade the device OS or select a device running Android 11 or above where possible.",
+        "ram": "Use a device with at least 4GB RAM for best LMX Content readiness.",
+        "storage": "Free device storage or use a device with at least 5GB available storage.",
+        "webview": "Update Android System WebView where possible.",
+        "network": "Confirm the device has stable internet connectivity before deployment.",
+        "time_timezone": "Correct the device date, time, and timezone settings.",
+        "lmx_app_installed": "Install LMX Content package com.qruize.quad42.media.app.",
+        "lmx_app_launch": "Reinstall or update LMX Content, then confirm the app can launch.",
+        "lmx_version": "Install a supported LMX Content build and rerun certification.",
+        "programmatic_vast": "Update WebView and verify Android version, RAM, and internet connectivity.",
+        "pull_to_content": "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer.",
+    }
+    for key, check in checks.items():
+        if isinstance(check, dict) and check.get("status") in {WARNING, FAIL}:
+            action = action_map.get(key)
+            if action and action not in actions:
+                actions.append(action)
+    if not actions and recommendations:
+        actions.append(recommendations)
+    return actions or ["No action required before deployment."]
 
 
 def _android_version_check(report: dict[str, Any]) -> CheckResult:

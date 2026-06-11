@@ -35,6 +35,7 @@ class ReportOut(BaseModel):
     recommendations: str
     raw_json: dict[str, Any]
     final_recommendation: str | None = None
+    device_report_summary: dict[str, Any] | None = None
 
     @field_serializer("created_at")
     def serialize_created_at(self, value: datetime) -> str:

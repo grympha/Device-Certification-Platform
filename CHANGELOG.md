@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.14
+
+- Added Device Report Summary generation for certification reports.
+- Added `GET /api/reports/{id}/pdf` for professional PDF report download.
+- Added `GET /api/reports/{id}/docx` for professional DOCX report download.
+- Added dashboard `Download PDF`, `Download DOCX`, and `Print Report` actions.
+- Added `reportlab` and `python-docx` backend dependencies.
+
 ## 0.1.13
 
 - Simplified the platform back to Device Compatibility and LMX Content Readiness.

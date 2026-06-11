@@ -6,13 +6,14 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from sqlalchemy import inspect, select, text
 from sqlalchemy.orm import Session
 
-from .certification import evaluate_report
+from .certification import build_device_report_summary, evaluate_report
 from .database import Base, engine, get_db
 from .models import Device, DiagnosticReport
+from .report_exports import build_docx_report, build_pdf_report
 from .schemas import DeviceDetail, DeviceOut, DeviceUpdate, ReportOut
 
 Base.metadata.create_all(bind=engine)
@@ -87,6 +88,7 @@ def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dic
     raw_with_checks["checks"] = evaluation["checks"]
     raw_with_checks["media_owner"] = device.media_owner
     raw_with_checks["final_recommendation"] = evaluation["final_recommendation"]
+    raw_with_checks["device_report_summary"] = evaluation["device_report_summary"]
 
     report = DiagnosticReport(
         device=device,
@@ -147,6 +149,34 @@ def get_report(report_id: int, db: Session = Depends(get_db)) -> ReportOut:
     return _report_out(report)
 
 
+@app.get("/api/reports/{report_id}/pdf")
+def get_report_pdf(report_id: int, db: Session = Depends(get_db)) -> StreamingResponse:
+    report = db.get(DiagnosticReport, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    context = _export_context(report)
+    pdf_bytes = build_pdf_report(context)
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="lmx-device-certification-report-{report_id}.pdf"'},
+    )
+
+
+@app.get("/api/reports/{report_id}/docx")
+def get_report_docx(report_id: int, db: Session = Depends(get_db)) -> StreamingResponse:
+    report = db.get(DiagnosticReport, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    context = _export_context(report)
+    docx_bytes = build_docx_report(context)
+    return StreamingResponse(
+        iter([docx_bytes]),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="lmx-device-certification-report-{report_id}.docx"'},
+    )
+
+
 @app.get("/api/export/{report_id}")
 def export_report(
     report_id: int,
@@ -200,6 +230,7 @@ def _media_owner_from_payload(payload: dict[str, Any]) -> str:
 
 def _report_out(report: DiagnosticReport) -> ReportOut:
     raw = json.loads(report.raw_json)
+    summary = _device_report_summary(report, raw)
     return ReportOut(
         id=report.id,
         device_id=report.device_id,
@@ -210,7 +241,38 @@ def _report_out(report: DiagnosticReport) -> ReportOut:
         recommendations=report.recommendations,
         raw_json=raw,
         final_recommendation=report.final_recommendation or raw.get("final_recommendation"),
+        device_report_summary=summary,
     )
+
+
+def _device_report_summary(report: DiagnosticReport, raw: dict[str, Any]) -> dict[str, Any]:
+    existing = raw.get("device_report_summary")
+    if isinstance(existing, dict):
+        return existing
+    checks = raw.get("checks") if isinstance(raw.get("checks"), dict) else {}
+    return build_device_report_summary(report.final_status, checks, report.recommendations)
+
+
+def _export_context(report: DiagnosticReport) -> dict[str, Any]:
+    raw = json.loads(report.raw_json)
+    return {
+        "id": report.id,
+        "raw": raw,
+        "checks": raw.get("checks") if isinstance(raw.get("checks"), dict) else {},
+        "created_at": _format_export_date(report.created_at),
+        "final_status": report.final_status,
+        "final_recommendation": report.final_recommendation or raw.get("final_recommendation") or "Not Recommended",
+        "score": report.score,
+        "summary": report.summary,
+        "recommendations": report.recommendations,
+        "device_report_summary": _device_report_summary(report, raw),
+    }
+
+
+def _format_export_date(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _html_report(report: DiagnosticReport) -> str:
