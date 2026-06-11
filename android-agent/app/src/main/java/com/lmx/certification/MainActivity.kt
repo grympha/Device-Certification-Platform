@@ -221,7 +221,7 @@ class MainActivity : Activity() {
             .put("hardware_acceleration_ready", window.decorView.layerType != View.LAYER_TYPE_SOFTWARE)
             .put("lmx_app_package", lmxPackage)
             .put("lmx_app_installed", packageInfo != null)
-            .put("lmx_app_version", packageInfo?.versionName ?: "")
+            .put("lmx_app_version", packageVersionName(packageInfo))
             .put("lmx_app_launchable", launchIntent != null)
             .put("permission_status", JSONObject()
                 .put("internet", permissionStatus(android.Manifest.permission.INTERNET))
@@ -290,7 +290,7 @@ class MainActivity : Activity() {
             .put("message", message)
             .put("installed", installed)
             .put("package_name", lmxPackage)
-            .put("version_name", packageInfo?.versionName ?: "")
+            .put("version_name", packageVersionName(packageInfo))
             .put("launchable", launchable)
     }
 
@@ -477,6 +477,7 @@ class MainActivity : Activity() {
         val hasUnknown = listOf(lmxAppStatus, contentDownloadStatus, playbackValidation, logValidation)
             .any { it.optString("status") == "UNKNOWN" }
 
+        val status = when {
             hasUnknown -> "UNKNOWN"
             !lmxInstalled || contentStatus == "FAIL" || playbackStatus == "FAIL" -> "RED"
             playbackActive && crashFound -> "YELLOW"
@@ -893,13 +894,17 @@ class MainActivity : Activity() {
         null
     }
 
+    private fun packageVersionName(packageInfo: PackageInfo?): String {
+        return packageInfo?.versionName?.toString() ?: ""
+    }
+
     private fun getWebViewVersion(): String {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WebView.getCurrentWebViewPackage()?.versionName ?: ""
+                WebView.getCurrentWebViewPackage()?.versionName?.toString() ?: ""
             } else {
-                getPackageInfo("com.google.android.webview")?.versionName
-                    ?: getPackageInfo("com.android.webview")?.versionName
+                getPackageInfo("com.google.android.webview")?.versionName?.toString()
+                    ?: getPackageInfo("com.android.webview")?.versionName?.toString()
                     ?: ""
             }
         } catch (_: Exception) {
