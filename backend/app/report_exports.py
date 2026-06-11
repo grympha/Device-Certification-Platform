@@ -137,7 +137,7 @@ def build_docx_report(context: dict[str, Any]) -> bytes:
         row[2].text = message
 
     document.add_heading("Device Report Summary", level=1)
-    _docx_summary_section(document, context["device_report_summary"])
+    _docx_summary_section(document, _sanitize_summary_for_platform(context["device_report_summary"], context["raw"]))
 
     document.add_heading("Certification Conclusion", level=1)
     document.add_paragraph(_conclusion(context["final_status"]))
@@ -270,7 +270,7 @@ def _assessment_table(context: dict[str, Any], styles: dict[str, ParagraphStyle]
 
 
 def _summary_flowables(context: dict[str, Any], styles: dict[str, ParagraphStyle]) -> list[Any]:
-    summary = context["device_report_summary"]
+    summary = _sanitize_summary_for_platform(context["device_report_summary"], context["raw"])
     flowables: list[Any] = [
         Paragraph(f"<b>Overall Summary:</b> {summary.get('overall_summary') or '-'}", styles["Body"])
     ]
@@ -319,11 +319,10 @@ def _device_info_rows(context: dict[str, Any]) -> list[tuple[str, str]]:
     if _platform(raw) == "windows":
         return [
             ("Computer Name", _value(raw, "computer_name", "device_name")),
-            ("Manufacturer", _value(raw, "manufacturer")),
-            ("Model", _value(raw, "model")),
+            ("Manufacturer", _normalize_windows_hardware_name(_value(raw, "manufacturer"))),
+            ("Model", _normalize_windows_hardware_name(_value(raw, "model"))),
             ("Windows Edition", _value(raw, "windows_edition")),
-            ("Windows Version", _value(raw, "windows_version", "os_version")),
-            ("Windows Build Number", _value(raw, "windows_build_number")),
+            ("Windows Version", _format_windows_version(raw)),
             ("System Type", _value(raw, "system_type")),
             ("CPU", _value(raw, "cpu")),
             ("CPU Architecture", _value(raw, "cpu_architecture")),
@@ -392,6 +391,70 @@ def _docx_summary_section(document: Document, summary: dict[str, Any]) -> None:
                 document.add_paragraph(item, style="List Bullet")
         else:
             document.add_paragraph("-")
+
+
+def _sanitize_summary_for_platform(summary: dict[str, Any], raw: dict[str, Any]) -> dict[str, Any]:
+    if _platform(raw) != "windows":
+        return summary
+
+    def sanitize(value: Any) -> str:
+        return (
+            str(value or "")
+            .replace(
+                "Install LMX Content package com.qruize.quad42.media.app.",
+                "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe.",
+            )
+            .replace("com.qruize.quad42.media.app", "LMX Content for Windows")
+            .replace(
+                "LMX Content may be installed but not launchable from Android.",
+                "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable.",
+            )
+            .replace(
+                "Reinstall or update LMX Content, then confirm the app can launch.",
+                "Reinstall or update LMX Content for Windows, then confirm MW Content.exe or mac-media-player.exe can launch.",
+            )
+            .replace(
+                "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer.",
+                "Update LMX Content for Windows to version 1.0.34 or newer.",
+            )
+        )
+
+    sanitized = dict(summary)
+    for key in ["good_points", "warning_points", "failed_points", "likely_causes", "recommended_actions"]:
+        sanitized[key] = [sanitize(item) for item in summary.get(key) or []]
+    sanitized["overall_summary"] = sanitize(summary.get("overall_summary"))
+    return sanitized
+
+
+def _normalize_windows_hardware_name(value: str) -> str:
+    if value.strip().lower() in {"system manufacturer", "system product name"}:
+        return "Custom Built PC"
+    return value
+
+
+def _format_windows_version(raw: dict[str, Any]) -> str:
+    version = _value(raw, "windows_version", "os_version")
+    try:
+        build = int(_value(raw, "windows_build_number") or str(version).split(".")[-1])
+    except (TypeError, ValueError):
+        return version
+    if build >= 26100:
+        return f"Windows 11 24H2 - Build {build}"
+    if build >= 22631:
+        return f"Windows 11 23H2 - Build {build}"
+    if build >= 22621:
+        return f"Windows 11 22H2 - Build {build}"
+    if build >= 22000:
+        return f"Windows 11 21H2 - Build {build}"
+    if build >= 19045:
+        return f"Windows 10 22H2 - Build {build}"
+    if build >= 19044:
+        return f"Windows 10 21H2 - Build {build}"
+    if build >= 19043:
+        return f"Windows 10 21H1 - Build {build}"
+    if build >= 19042:
+        return f"Windows 10 20H2 - Build {build}"
+    return f"Windows 10 - Build {build}"
 
 
 def _conclusion(final_status: str) -> str:

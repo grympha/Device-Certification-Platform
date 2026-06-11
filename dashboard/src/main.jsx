@@ -23,6 +23,7 @@ import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const APK_DOWNLOAD_URL = "/downloads/app-debug.apk";
+const WINDOWS_AGENT_DOWNLOAD_URL = "/downloads/LMX-Windows-Certification.exe";
 
 const sampleReport = {
   id: 1,
@@ -238,14 +239,22 @@ function App() {
             <FileText size={16} />
             API Docs
           </a>
-          <a className="top-action" href={APK_DOWNLOAD_URL} download="lmx-android-agent-debug.apk">
-            <Download size={16} />
-            Download Android APK
-          </a>
+          <div className="agent-downloads" aria-label="Certification Agents">
+            <span>Certification Agents</span>
+            <a className="top-action" href={APK_DOWNLOAD_URL} download="lmx-android-agent-debug.apk" title="Download Android Agent">
+              <Smartphone size={16} />
+              Android Agent
+            </a>
+            <a className="top-action" href={WINDOWS_AGENT_DOWNLOAD_URL} download="LMX-Windows-Certification.exe" title="Download Windows Agent">
+              <Monitor size={16} />
+              Windows Agent
+            </a>
+          </div>
         </div>
       </header>
 
       <ExecutiveSummary report={report} apiOnline={apiOnline} />
+      <CertificationConclusion report={report} />
       <div className="split-grid split-grid-halves">
         <DeviceInformation
           device={deviceDetail}
@@ -279,9 +288,7 @@ function App() {
 function ExecutiveSummary({ report, apiOnline }) {
   const raw = report.raw_json || {};
   const checks = raw.checks || {};
-  const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
   const primaryReadinessKey = isWindows(raw) ? "lmx_version" : "programmatic_vast";
-  const primaryReadinessLabel = isWindows(raw) ? "LMX Version Readiness" : "Programmatic/VAST Readiness";
   return (
     <section className="section-card executive-summary">
       <SectionHeader title="Executive Summary">
@@ -297,9 +304,6 @@ function ExecutiveSummary({ report, apiOnline }) {
           value={report.final_status}
           tone={statusTone(report.final_status)}
         />
-        <SummaryCard label="Final Recommendation" value={finalRecommendation} tone={statusTone(report.final_status)} wide>
-          <ExportActions reportId={report.id} iconOnly />
-        </SummaryCard>
         <SummaryCard
           icon={<BarChart3 size={24} />}
           label="Certification Score"
@@ -309,7 +313,7 @@ function ExecutiveSummary({ report, apiOnline }) {
         />
         <SummaryCard
           icon={<ClipboardCheck size={24} />}
-          label={primaryReadinessLabel}
+          label="LMX Version Readiness"
           value={checks[primaryReadinessKey]?.status || "UNKNOWN"}
           tone={statusTone(checks[primaryReadinessKey]?.status)}
         />
@@ -320,6 +324,21 @@ function ExecutiveSummary({ report, apiOnline }) {
           tone={statusTone(checks.pull_to_content?.status)}
         />
       </div>
+    </section>
+  );
+}
+
+function CertificationConclusion({ report }) {
+  const raw = report.raw_json || {};
+  const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
+  return (
+    <section className={`section-card conclusion-card ${statusTone(report.final_status)}`}>
+      <div>
+        <span>Conclusion</span>
+        <strong>{finalRecommendation}</strong>
+        <p>{conclusionText(report.final_status)}</p>
+      </div>
+      <ExportActions reportId={report.id} iconOnly />
     </section>
   );
 }
@@ -378,7 +397,8 @@ function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessa
 function CompatibilityAssessment({ report }) {
   const raw = report.raw_json || {};
   const checks = raw.checks || {};
-  const keys = isWindows(raw) ? windowsCompatibilityKeys : [...deviceCompatibilityKeys, ...lmxReadinessKeys];
+  const keys = (isWindows(raw) ? windowsCompatibilityKeys : [...deviceCompatibilityKeys, ...lmxReadinessKeys])
+    .filter((key) => checkLabels[key]);
   return (
     <section className="section-card">
       <SectionHeader title="Device Compatibility" />
@@ -394,18 +414,19 @@ function CompatibilityAssessment({ report }) {
 function DeviceReportSummary({ report }) {
   const raw = report.raw_json || {};
   const summary = report.device_report_summary || raw.device_report_summary || buildDeviceReportSummary(report, raw);
+  const displaySummary = sanitizeSummaryForPlatform(summary, raw);
   return (
     <section className="section-card report-summary-section">
       <SectionHeader title="Device Report Summary" />
       <div className="summary-focus">
         <span>Overall Summary</span>
-        <p>{summary.overall_summary || "-"}</p>
+        <p>{displaySummary.overall_summary || "-"}</p>
       </div>
       <div className="summary-grid">
-        <SummaryList title="Strengths" items={summary.good_points} tone="pass" />
-        <SummaryList title="Warnings" items={summary.warning_points} tone="warning" />
-        <SummaryList title="Problems" items={summary.failed_points} tone="fail" />
-        <SummaryList title="Recommended Actions" items={summary.recommended_actions} tone="neutral" />
+        <SummaryList title="Strengths" items={displaySummary.good_points} tone="pass" />
+        <SummaryList title="Warnings" items={displaySummary.warning_points} tone="warning" />
+        <SummaryList title="Problems" items={displaySummary.failed_points} tone="fail" />
+        <SummaryList title="Recommended Actions" items={displaySummary.recommended_actions} tone="neutral" />
       </div>
     </section>
   );
@@ -588,6 +609,7 @@ const checkLabels = {
   time_timezone: "Time / Timezone",
   lmx_app_installed: "LMX Installed",
   lmx_app_launch: "LMX Launch",
+  lmx_version: "LMX Version",
   programmatic_vast: "Programmatic / VAST Readiness",
   pull_to_content: "Pull To Content Readiness"
 };
@@ -603,13 +625,14 @@ const deploymentLabels = {
 
 function deviceInfoRows(raw, device, report) {
   if (isWindows(raw)) {
+    const manufacturer = normalizeWindowsHardwareName(raw.manufacturer || device.manufacturer);
+    const model = normalizeWindowsHardwareName(raw.model || device.model);
     return [
       ["Computer Name", raw.computer_name || raw.device_name || device.device_name],
-      ["Manufacturer", raw.manufacturer || device.manufacturer],
-      ["Model", raw.model || device.model],
+      ["Manufacturer", manufacturer],
+      ["Model", model],
       ["Windows Edition", raw.windows_edition],
-      ["Windows Version", raw.windows_version || raw.os_version || device.os_version],
-      ["Build Number", raw.windows_build_number],
+      ["Windows Version", formatWindowsVersion(raw, device)],
       ["System Type", raw.system_type],
       ["CPU", raw.cpu],
       ["CPU Architecture", raw.cpu_architecture],
@@ -636,6 +659,34 @@ function deviceInfoRows(raw, device, report) {
     ["LMX Version", raw.lmx_app_version || device.lmx_app_version],
     ["Report Date", formatMalaysiaTime(report.created_at)]
   ];
+}
+
+function normalizeWindowsHardwareName(value) {
+  const text = String(value || "").trim();
+  if (["system manufacturer", "system product name"].includes(text.toLowerCase())) {
+    return "Custom Built PC";
+  }
+  return text;
+}
+
+function formatWindowsVersion(raw = {}, device = {}) {
+  const edition = String(raw.windows_edition || raw.os_version || device.os_version || "").toLowerCase();
+  const version = String(raw.windows_version || "");
+  const build = Number.parseInt(raw.windows_build_number || version.split(".").pop(), 10);
+  if (!build) return raw.windows_version || raw.os_version || device.os_version || "-";
+
+  if (edition.includes("windows 11") || build >= 22000) {
+    if (build >= 26100) return `Windows 11 24H2 - Build ${build}`;
+    if (build >= 22631) return `Windows 11 23H2 - Build ${build}`;
+    if (build >= 22621) return `Windows 11 22H2 - Build ${build}`;
+    return `Windows 11 21H2 - Build ${build}`;
+  }
+
+  if (build >= 19045) return `Windows 10 22H2 - Build ${build}`;
+  if (build >= 19044) return `Windows 10 21H2 - Build ${build}`;
+  if (build >= 19043) return `Windows 10 21H1 - Build ${build}`;
+  if (build >= 19042) return `Windows 10 20H2 - Build ${build}`;
+  return `Windows 10 - Build ${build}`;
 }
 
 function isWindows(raw = {}) {
@@ -696,12 +747,13 @@ function buildDeviceReportSummary(report, raw) {
     good_points: values.filter((check) => check.status === "PASS").map((check) => check.message),
     warning_points: values.filter((check) => check.status === "WARNING").map((check) => check.message),
     failed_points: values.filter((check) => check.status === "FAIL").map((check) => check.message),
-    likely_causes: likelyCauses(checks),
-    recommended_actions: recommendedActions(checks, report.recommendations)
+    likely_causes: likelyCauses(checks, raw),
+    recommended_actions: recommendedActions(checks, report.recommendations, raw)
   };
 }
 
-function likelyCauses(checks) {
+function likelyCauses(checks, raw = {}) {
+  const windows = isWindows(raw);
   const map = {
     android_version: "Android OS version may be below the supported baseline for stable LMX Content deployment.",
     windows_os: "Windows edition or version may be unsupported for LMX Content deployment.",
@@ -712,8 +764,15 @@ function likelyCauses(checks) {
     webview: "Older Android System WebView versions may have limited compatibility with HTML, URL, or VAST playback.",
     network: "Network connectivity may be unavailable or unstable during validation.",
     time_timezone: "Incorrect device time or timezone can affect scheduled content and reporting.",
-    lmx_app_installed: "LMX Content may not be installed on the device.",
-    lmx_app_launch: "LMX Content may be installed but not launchable from Android.",
+    lmx_app_installed: windows
+      ? "LMX Content for Windows may not be installed in C:\\Program Files\\mac-media-player."
+      : "LMX Content may not be installed on the device.",
+    lmx_app_launch: windows
+      ? "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable."
+      : "LMX Content may be installed but not launchable from Android.",
+    lmx_version: windows
+      ? "The LMX Content for Windows executable version could not be detected."
+      : "The LMX Content version could not be detected.",
     programmatic_vast: "Programmatic/VAST readiness may be limited by Android version, WebView, RAM, or network state.",
     pull_to_content: "The installed LMX Content version may be below the Pull To Content requirement."
   };
@@ -724,28 +783,68 @@ function likelyCauses(checks) {
   return items.length ? Array.from(new Set(items)) : ["No likely causes identified from the current assessment."];
 }
 
-function recommendedActions(checks, recommendations) {
+function recommendedActions(checks, recommendations, raw = {}) {
+  const windows = isWindows(raw);
   const map = {
     android_version: "Upgrade the device OS or select a device running Android 11 or above where possible.",
     windows_os: "Use Windows 10 or Windows 11 non-server editions for Windows LMX Content deployment.",
     cpu: "Use an Intel Core i5/i7 class CPU or AMD Ryzen class CPU where possible.",
-    ram: "Use a device with at least 4GB RAM for best LMX Content readiness.",
+    ram: null,
     storage: "Free device storage or use a device with at least 5GB available storage.",
     gpu: "Install the correct graphics driver or use supported Intel UHD/Iris, AMD Vega, or dedicated graphics.",
     webview: "Update Android System WebView where possible.",
     network: "Confirm the device has stable internet connectivity before deployment.",
     time_timezone: "Correct the device date, time, and timezone settings.",
-    lmx_app_installed: "Install LMX Content package com.qruize.quad42.media.app.",
-    lmx_app_launch: "Reinstall or update LMX Content, then confirm the app can launch.",
+    lmx_app_installed: windows
+      ? "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe."
+      : "Install LMX Content package com.qruize.quad42.media.app.",
+    lmx_app_launch: windows
+      ? "Reinstall or update LMX Content for Windows, then confirm MW Content.exe or mac-media-player.exe can launch."
+      : "Reinstall or update LMX Content, then confirm the app can launch.",
+    lmx_version: windows
+      ? "Install or update LMX Content for Windows and confirm the executable file version can be detected."
+      : "Install a supported LMX Content build and rerun certification.",
     programmatic_vast: "Update WebView and verify Android version, RAM, and internet connectivity.",
-    pull_to_content: "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer."
+    pull_to_content: windows
+      ? "Update LMX Content for Windows to version 1.0.34 or newer."
+      : "Update LMX Content to Android version 2.9.1.2 native or newer."
   };
   const items = Object.entries(checks)
     .filter(([, check]) => ["WARNING", "FAIL"].includes(check.status))
-    .map(([key]) => map[key])
+    .map(([key, check]) => key === "ram" ? ramRecommendation(check) : map[key])
     .filter(Boolean);
   if (items.length) return Array.from(new Set(items));
   return recommendations ? [recommendations] : ["No action required before deployment."];
+}
+
+function ramRecommendation(check = {}) {
+  if (check.status === "FAIL") return "Use a device with at least 4GB RAM.";
+  if (check.status === "WARNING") return "Use 8GB RAM or above for optimal LMX Content performance.";
+  return null;
+}
+
+function sanitizeSummaryForPlatform(summary = {}, raw = {}) {
+  if (!isWindows(raw)) return summary;
+  const sanitize = (value) => sanitizeWindowsText(value);
+  const sanitizeList = (items) => (items || []).map(sanitize);
+  return {
+    ...summary,
+    overall_summary: sanitize(summary.overall_summary),
+    good_points: sanitizeList(summary.good_points),
+    warning_points: sanitizeList(summary.warning_points),
+    failed_points: sanitizeList(summary.failed_points),
+    likely_causes: sanitizeList(summary.likely_causes),
+    recommended_actions: sanitizeList(summary.recommended_actions)
+  };
+}
+
+function sanitizeWindowsText(value = "") {
+  return String(value)
+    .replace(/Install LMX Content package com\.qruize\.quad42\.media\.app\./g, "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe.")
+    .replace(/com\.qruize\.quad42\.media\.app/g, "LMX Content for Windows")
+    .replace(/LMX Content may be installed but not launchable from Android\./g, "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable.")
+    .replace(/Reinstall or update LMX Content, then confirm the app can launch\./g, "Reinstall or update LMX Content for Windows, then confirm MW Content.exe or mac-media-player.exe can launch.")
+    .replace(/Update LMX Content to Android version 2\.9\.1\.2 native or newer, or Windows version 1\.0\.34 or newer\./g, "Update LMX Content for Windows to version 1.0.34 or newer.");
 }
 
 function formatMalaysiaTime(timestamp) {

@@ -62,6 +62,22 @@ button.secondary,
   border-color: var(--line);
 }
 
+.agent-downloads {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+
+.agent-downloads > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .app-shell {
   min-height: 100vh;
   padding: 24px;
@@ -250,7 +266,7 @@ input {
 
 .executive-grid {
   display: grid;
-  grid-template-columns: 1.05fr 1.35fr 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -338,6 +354,56 @@ input {
 }
 
 .summary-card.fail {
+  border-color: rgba(220, 38, 38, 0.28);
+  background: #fef2f2;
+}
+
+.conclusion-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.conclusion-card > div {
+  display: grid;
+  gap: 6px;
+}
+
+.conclusion-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.conclusion-card strong {
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.conclusion-card p {
+  max-width: 900px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.conclusion-card.pass {
+  border-color: rgba(22, 163, 74, 0.28);
+  background: #f0fdf4;
+}
+
+.conclusion-card.warning {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: #fffbeb;
+}
+
+.conclusion-card.fail {
   border-color: rgba(220, 38, 38, 0.28);
   background: #fef2f2;
 }
@@ -682,6 +748,13 @@ li {
 
   .header-actions {
     display: grid;
+  }
+
+  .agent-downloads {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding-left: 0;
+    border-left: 0;
   }
 
   .executive-grid,

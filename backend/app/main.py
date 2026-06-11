@@ -251,9 +251,12 @@ def _report_out(report: DiagnosticReport) -> ReportOut:
 def _device_report_summary(report: DiagnosticReport, raw: dict[str, Any]) -> dict[str, Any]:
     existing = raw.get("device_report_summary")
     if isinstance(existing, dict):
-        return existing
+        return _sanitize_windows_summary(existing, raw)
     checks = raw.get("checks") if isinstance(raw.get("checks"), dict) else {}
-    return build_device_report_summary(report.final_status, checks, report.recommendations)
+    return _sanitize_windows_summary(
+        build_device_report_summary(report.final_status, checks, report.recommendations),
+        raw,
+    )
 
 
 def _export_context(report: DiagnosticReport) -> dict[str, Any]:
@@ -289,6 +292,39 @@ def _score_label(score: int) -> str:
     return "Not Recommended"
 
 
+def _sanitize_windows_summary(summary: dict[str, Any], raw: dict[str, Any]) -> dict[str, Any]:
+    if str(raw.get("platform") or "").lower() != "windows":
+        return summary
+
+    def sanitize(value: Any) -> str:
+        return (
+            str(value or "")
+            .replace(
+                "Install LMX Content package com.qruize.quad42.media.app.",
+                "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe.",
+            )
+            .replace("com.qruize.quad42.media.app", "LMX Content for Windows")
+            .replace(
+                "LMX Content may be installed but not launchable from Android.",
+                "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable.",
+            )
+            .replace(
+                "Reinstall or update LMX Content, then confirm the app can launch.",
+                "Reinstall or update LMX Content for Windows, then confirm MW Content.exe or mac-media-player.exe can launch.",
+            )
+            .replace(
+                "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer.",
+                "Update LMX Content for Windows to version 1.0.34 or newer.",
+            )
+        )
+
+    sanitized = dict(summary)
+    for key in ["good_points", "warning_points", "failed_points", "likely_causes", "recommended_actions"]:
+        sanitized[key] = [sanitize(item) for item in summary.get(key) or []]
+    sanitized["overall_summary"] = sanitize(summary.get("overall_summary"))
+    return sanitized
+
+
 def _html_report(report: DiagnosticReport) -> str:
     raw = json.loads(report.raw_json)
     checks = raw.get("checks", {})
@@ -297,6 +333,10 @@ def _html_report(report: DiagnosticReport) -> str:
     limitations = [value["message"] for value in checks.values() if value.get("status") == "WARNING"]
     failed_html = "".join(f"<li>{item}</li>" for item in failed) or "<li>None</li>"
     limitations_html = "".join(f"<li>{item}</li>" for item in limitations) or "<li>None</li>"
+    recommendations = _sanitize_windows_text(report.recommendations, raw)
+    manufacturer = _normalize_windows_hardware_name(raw.get("manufacturer", ""), raw)
+    model = _normalize_windows_hardware_name(raw.get("model", ""), raw)
+    os_version = _format_windows_version(raw) if str(raw.get("platform") or "").lower() == "windows" else raw.get("os_version", "")
 
     return f"""
     <!doctype html>
@@ -321,9 +361,9 @@ def _html_report(report: DiagnosticReport) -> str:
           <tr><th>Device</th><td>{raw.get("device_name", "")}</td></tr>
           <tr><th>Media Owner / Client</th><td>{raw.get("media_owner") or raw.get("client_name") or "Unassigned"}</td></tr>
           <tr><th>Platform</th><td>{raw.get("platform", "")}</td></tr>
-          <tr><th>Manufacturer</th><td>{raw.get("manufacturer", "")}</td></tr>
-          <tr><th>Model</th><td>{raw.get("model", "")}</td></tr>
-          <tr><th>OS Version</th><td>{raw.get("os_version", "")}</td></tr>
+          <tr><th>Manufacturer</th><td>{manufacturer}</td></tr>
+          <tr><th>Model</th><td>{model}</td></tr>
+          <tr><th>OS Version</th><td>{os_version}</td></tr>
           <tr><th>WebView Version</th><td>{raw.get("webview_version", "")}</td></tr>
           <tr><th>RAM</th><td>{raw.get("ram_total_gb", "")}GB</td></tr>
           <tr><th>Storage Available</th><td>{raw.get("storage_available_gb", "")}GB</td></tr>
@@ -334,7 +374,60 @@ def _html_report(report: DiagnosticReport) -> str:
         <h2>Limitations</h2>
         <ul>{limitations_html}</ul>
         <h2>Recommendation</h2>
-        <p>{report.recommendations}</p>
+        <p>{recommendations}</p>
       </body>
     </html>
     """
+
+
+def _sanitize_windows_text(value: Any, raw: dict[str, Any]) -> str:
+    if str(raw.get("platform") or "").lower() != "windows":
+        return str(value or "")
+    return (
+        str(value or "")
+        .replace(
+            "Install LMX Content package com.qruize.quad42.media.app.",
+            "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe.",
+        )
+        .replace("com.qruize.quad42.media.app", "LMX Content for Windows")
+        .replace(
+            "LMX Content may be installed but not launchable from Android.",
+            "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable.",
+        )
+        .replace(
+            "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer.",
+            "Update LMX Content for Windows to version 1.0.34 or newer.",
+        )
+    )
+
+
+def _normalize_windows_hardware_name(value: Any, raw: dict[str, Any]) -> str:
+    text = str(value or "")
+    if str(raw.get("platform") or "").lower() == "windows" and text.strip().lower() in {"system manufacturer", "system product name"}:
+        return "Custom Built PC"
+    return text
+
+
+def _format_windows_version(raw: dict[str, Any]) -> str:
+    version = str(raw.get("windows_version") or raw.get("os_version") or "")
+    try:
+        build = int(raw.get("windows_build_number") or version.split(".")[-1])
+    except (TypeError, ValueError):
+        return version
+    if build >= 26100:
+        return f"Windows 11 24H2 - Build {build}"
+    if build >= 22631:
+        return f"Windows 11 23H2 - Build {build}"
+    if build >= 22621:
+        return f"Windows 11 22H2 - Build {build}"
+    if build >= 22000:
+        return f"Windows 11 21H2 - Build {build}"
+    if build >= 19045:
+        return f"Windows 10 22H2 - Build {build}"
+    if build >= 19044:
+        return f"Windows 10 21H2 - Build {build}"
+    if build >= 19043:
+        return f"Windows 10 21H1 - Build {build}"
+    if build >= 19042:
+        return f"Windows 10 20H2 - Build {build}"
+    return f"Windows 10 - Build {build}"

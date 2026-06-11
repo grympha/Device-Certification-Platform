@@ -210,6 +210,7 @@ def _messages_for_status(checks: dict[str, Any], status: str) -> list[str]:
 
 def _likely_causes(checks: dict[str, Any]) -> list[str]:
     causes: list[str] = []
+    is_windows = "windows_os" in checks
     cause_map = {
         "android_version": "Android OS version may be below the supported baseline for stable LMX Content deployment.",
         "windows_os": "Windows edition or version may be unsupported for LMX Content deployment.",
@@ -220,9 +221,21 @@ def _likely_causes(checks: dict[str, Any]) -> list[str]:
         "webview": "Older Android System WebView versions may have limited compatibility with HTML, URL, or VAST playback.",
         "network": "Network connectivity may be unavailable or unstable during validation.",
         "time_timezone": "Incorrect device time or timezone can affect scheduled content and reporting.",
-        "lmx_app_installed": "LMX Content may not be installed on the device.",
-        "lmx_app_launch": "LMX Content may be installed but not launchable from Android.",
-        "lmx_version": "The LMX Content version could not be detected.",
+        "lmx_app_installed": (
+            "LMX Content for Windows may not be installed in C:\\Program Files\\mac-media-player."
+            if is_windows else
+            "LMX Content may not be installed on the device."
+        ),
+        "lmx_app_launch": (
+            "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable."
+            if is_windows else
+            "LMX Content may be installed but not launchable from Android."
+        ),
+        "lmx_version": (
+            "The LMX Content for Windows executable version could not be detected."
+            if is_windows else
+            "The LMX Content version could not be detected."
+        ),
         "programmatic_vast": "Programmatic/VAST readiness may be limited by Android version, WebView, RAM, or network state.",
         "pull_to_content": "The installed LMX Content version may be below the Pull To Content requirement.",
     }
@@ -236,30 +249,55 @@ def _likely_causes(checks: dict[str, Any]) -> list[str]:
 
 def _recommended_actions(checks: dict[str, Any], recommendations: str | None) -> list[str]:
     actions: list[str] = []
+    is_windows = "windows_os" in checks
     action_map = {
         "android_version": "Upgrade the device OS or select a device running Android 11 or above where possible.",
         "windows_os": "Use Windows 10 or Windows 11 non-server editions for Windows LMX Content deployment.",
         "cpu": "Use an Intel Core i5/i7 class CPU or AMD Ryzen class CPU where possible.",
-        "ram": "Use a device with at least 4GB RAM for best LMX Content readiness.",
+        "ram": None,
         "storage": "Free device storage or use a device with at least 5GB available storage.",
         "gpu": "Install the correct graphics driver or use a device with supported Intel UHD/Iris, AMD Vega, or dedicated graphics.",
         "webview": "Update Android System WebView where possible.",
         "network": "Confirm the device has stable internet connectivity before deployment.",
         "time_timezone": "Correct the device date, time, and timezone settings.",
-        "lmx_app_installed": "Install LMX Content package com.qruize.quad42.media.app.",
-        "lmx_app_launch": "Reinstall or update LMX Content, then confirm the app can launch.",
-        "lmx_version": "Install a supported LMX Content build and rerun certification.",
+        "lmx_app_installed": (
+            "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe."
+            if is_windows else
+            "Install LMX Content package com.qruize.quad42.media.app."
+        ),
+        "lmx_app_launch": (
+            "Reinstall or update LMX Content for Windows, then confirm MW Content.exe or mac-media-player.exe can launch."
+            if is_windows else
+            "Reinstall or update LMX Content, then confirm the app can launch."
+        ),
+        "lmx_version": (
+            "Install or update LMX Content for Windows and confirm the executable file version can be detected."
+            if is_windows else
+            "Install a supported LMX Content build and rerun certification."
+        ),
         "programmatic_vast": "Update WebView and verify Android version, RAM, and internet connectivity.",
-        "pull_to_content": "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer.",
+        "pull_to_content": (
+            "Update LMX Content for Windows to version 1.0.34 or newer."
+            if is_windows else
+            "Update LMX Content to Android version 2.9.1.2 native or newer."
+        ),
     }
     for key, check in checks.items():
         if isinstance(check, dict) and check.get("status") in {WARNING, FAIL}:
-            action = action_map.get(key)
+            action = _ram_recommendation(check) if key == "ram" else action_map.get(key)
             if action and action not in actions:
                 actions.append(action)
     if not actions and recommendations:
         actions.append(recommendations)
     return actions or ["No action required before deployment."]
+
+
+def _ram_recommendation(check: dict[str, Any]) -> str | None:
+    if check.get("status") == FAIL:
+        return "Use a device with at least 4GB RAM."
+    if check.get("status") == WARNING:
+        return "Use 8GB RAM or above for optimal LMX Content performance."
+    return None
 
 
 def _android_version_check(report: dict[str, Any]) -> CheckResult:

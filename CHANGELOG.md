@@ -7,6 +7,8 @@
 - Updated Windows LMX detection to `C:\Program Files\mac-media-player` with `MW Content.exe` or `mac-media-player.exe`.
 - Updated Windows LMX version detection to read executable file version information and report `Version Unknown` as a warning.
 - Removed the Windows app's detailed local dashboard sections so the web dashboard remains the main review surface.
+- Added Windows Agent download support in the dashboard Certification Agents actions.
+- Fixed Windows dashboard compatibility labels, Windows version display, custom-built PC manufacturer/model display, RAM recommendation wording, and Windows-specific LMX guidance.
 
 ## 0.2.0
 
