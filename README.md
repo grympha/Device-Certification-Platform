@@ -204,6 +204,32 @@ $env:LMX_API_BASE_URL="http://127.0.0.1:8010"; python scripts/smoke_test_v1.py
 
 - Dashboard checklist: `docs/DASHBOARD_VALIDATION.md`
 - Android build and device checklist: `docs/ANDROID_BUILD_AND_DEVICE_TEST.md`
+- Windows certification guide: `docs/WINDOWS_CERTIFICATION.md`
+
+## Windows Device Certification
+
+Phase 2 supports Windows 10 and Windows 11 certification through `windows-agent/windows_certification_agent.py`.
+
+Generate a local Windows report:
+
+```powershell
+cd windows-agent
+python windows_certification_agent.py
+```
+
+Upload to the local backend:
+
+```powershell
+python windows_certification_agent.py --upload --backend-url http://127.0.0.1:8000/api/reports
+```
+
+Upload to the Render backend:
+
+```powershell
+python windows_certification_agent.py --upload --backend-url https://device-certification-platform.onrender.com/api/reports
+```
+
+Windows reports use the same `POST /api/reports` endpoint, dashboard, PDF export, and DOCX export as Android reports. The dashboard shows a `WINDOWS` platform badge, Windows-specific fields, Windows scoring checks, and non-scoring Deployment Readiness.
 - Render deployment guide: `docs/RENDER_DEPLOYMENT.md`
 - Deployment checklist: `docs/DEPLOYMENT_CHECKLIST.md`
 - Neon PostgreSQL setup: `docs/NEON_POSTGRES_SETUP.md`

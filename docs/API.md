@@ -2,7 +2,7 @@
 
 ## POST /api/reports
 
-Receives one diagnostic report JSON payload from the Android Agent or future Windows Agent.
+Receives one diagnostic report JSON payload from the Android Agent or Windows Agent.
 
 Required and commonly used fields:
 
@@ -30,6 +30,34 @@ The backend evaluates:
 
 - Device Compatibility: Android Version, RAM, Storage, WebView, Network, Time/Timezone.
 - LMX Content Readiness: LMX App Installed, LMX App Launch, LMX Version, Programmatic/VAST Readiness, Pull To Content Readiness.
+
+Windows payload example:
+
+```json
+{
+  "device_name": "LMX-WIN11-TEST",
+  "platform": "Windows",
+  "manufacturer": "Dell Inc.",
+  "model": "OptiPlex 7010",
+  "windows_edition": "Windows 11 Pro",
+  "windows_version": "10.0.22631",
+  "windows_build_number": "22631",
+  "cpu": "Intel Core i5-12500",
+  "cpu_architecture": "AMD64",
+  "ram_total_gb": 16,
+  "storage_available_gb": 74.5,
+  "gpu": "Intel UHD Graphics 770",
+  "screen_resolution": "1920x1080",
+  "internet_connected": true,
+  "system_time": "2026-06-11T08:00:00Z",
+  "timezone": "Malaysia Standard Time",
+  "lmx_app_installed": true,
+  "lmx_app_launchable": true,
+  "lmx_app_version": "1.0.34"
+}
+```
+
+Windows reports may include non-scoring `deployment_readiness` values for Auto Login, Auto Startup, Power Settings, Display Scaling, Wake Timers, and Windows Update Status.
 
 ## Certification Outcomes
 
@@ -61,6 +89,24 @@ Certification score uses a weighted 100-point model:
 | Pull To Content | 5 |
 
 PASS receives full points, WARNING receives half points, and FAIL receives zero points.
+
+Windows score model:
+
+| Check | Points |
+| --- | ---: |
+| Windows OS | 15 |
+| CPU | 10 |
+| RAM | 15 |
+| Storage | 10 |
+| GPU | 10 |
+| Network | 10 |
+| Time/Timezone | 5 |
+| LMX Installed | 10 |
+| LMX Version | 10 |
+| LMX Launch | 10 |
+| Pull To Content | 5 |
+
+Windows scoring is normalized to a 100-point result while preserving the relative weights above.
 
 Score labels:
 

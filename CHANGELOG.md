@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+- Added Phase 2 Windows Device Certification support for Windows 10 and Windows 11.
+- Added Windows-specific backend scoring for OS, CPU, RAM, storage, GPU, network, time/timezone, LMX installed, LMX version, LMX launch, and Pull To Content readiness.
+- Added non-scoring Windows Deployment Readiness output for Auto Login, Auto Startup, Power Settings, Display Scaling, Wake Timers, and Windows Update Status.
+- Added Python Windows Certification Agent in `windows-agent/windows_certification_agent.py`.
+- Added `reports/sample_windows_report.json`.
+- Updated dashboard to display Android and Windows reports with platform badges and Windows-specific fields.
+- Updated PDF and DOCX exports to include Windows-specific device information and assessment rows.
+- Added Windows certification documentation.
+
 ## 0.1.14
 
 - Added Device Report Summary generation for certification reports.

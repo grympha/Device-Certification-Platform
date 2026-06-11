@@ -52,7 +52,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
-    allow_origin_regex=r"https://.*\.onrender\.com",
+    allow_origin_regex=r"(https://.*\.onrender\.com|http://(localhost|127\.0\.0\.1):\d+)",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -90,6 +90,8 @@ def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dic
     raw_with_checks["final_recommendation"] = evaluation["final_recommendation"]
     raw_with_checks["device_report_summary"] = evaluation["device_report_summary"]
     raw_with_checks["score_label"] = evaluation["score_label"]
+    if "deployment_readiness" in evaluation:
+        raw_with_checks["deployment_readiness"] = evaluation["deployment_readiness"]
 
     report = DiagnosticReport(
         device=device,

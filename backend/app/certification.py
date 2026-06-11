@@ -9,7 +9,7 @@ PASS = "PASS"
 WARNING = "WARNING"
 FAIL = "FAIL"
 
-SCORE_WEIGHTS = {
+ANDROID_SCORE_WEIGHTS = {
     "android_version": 15,
     "ram": 15,
     "storage": 10,
@@ -19,6 +19,20 @@ SCORE_WEIGHTS = {
     "lmx_app_installed": 10,
     "lmx_app_launch": 10,
     "programmatic_vast": 5,
+    "pull_to_content": 5,
+}
+
+WINDOWS_SCORE_WEIGHTS = {
+    "windows_os": 15,
+    "cpu": 10,
+    "ram": 15,
+    "storage": 10,
+    "gpu": 10,
+    "network": 10,
+    "time_timezone": 5,
+    "lmx_app_installed": 10,
+    "lmx_version": 10,
+    "lmx_app_launch": 10,
     "pull_to_content": 5,
 }
 
@@ -67,6 +81,12 @@ def _version_at_least(value: Any, minimum: str) -> bool:
 
 
 def evaluate_report(report: dict[str, Any]) -> dict[str, Any]:
+    if str(report.get("platform") or "Android").lower() == "windows":
+        return _evaluate_windows_report(report)
+    return _evaluate_android_report(report)
+
+
+def _evaluate_android_report(report: dict[str, Any]) -> dict[str, Any]:
     checks = [
         _android_version_check(report),
         _ram_check(report),
@@ -80,10 +100,32 @@ def evaluate_report(report: dict[str, Any]) -> dict[str, Any]:
         _programmatic_check(report),
         _pull_to_content_check(report),
     ]
+    return _build_evaluation(checks, ANDROID_SCORE_WEIGHTS)
 
+
+def _evaluate_windows_report(report: dict[str, Any]) -> dict[str, Any]:
+    checks = [
+        _windows_os_check(report),
+        _windows_cpu_check(report),
+        _windows_ram_check(report),
+        _windows_storage_check(report),
+        _windows_gpu_check(report),
+        _network_check(report),
+        _time_check(report),
+        _lmx_installed_check(report),
+        _windows_lmx_version_check(report),
+        _lmx_launch_check(report),
+        _pull_to_content_check(report),
+    ]
+    evaluation = _build_evaluation(checks, WINDOWS_SCORE_WEIGHTS)
+    evaluation["deployment_readiness"] = _deployment_readiness(report)
+    return evaluation
+
+
+def _build_evaluation(checks: list[CheckResult], score_weights: dict[str, int]) -> dict[str, Any]:
     fail_count = sum(1 for check in checks if check.status == FAIL)
     warning_count = sum(1 for check in checks if check.status == WARNING)
-    score = _certification_score(checks)
+    score = _certification_score(checks, score_weights)
 
     if fail_count:
         final_status = "Not Recommended"
@@ -113,15 +155,16 @@ def evaluate_report(report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _certification_score(checks: list[CheckResult]) -> int:
+def _certification_score(checks: list[CheckResult], score_weights: dict[str, int]) -> int:
     score = 0.0
+    max_score = sum(score_weights.values()) or 100
     for check in checks:
-        weight = SCORE_WEIGHTS.get(check.name, 0)
+        weight = score_weights.get(check.name, 0)
         if check.status == PASS:
             score += weight
         elif check.status == WARNING:
             score += weight * 0.5
-    return int(round(score))
+    return int(round(score / max_score * 100))
 
 
 def _score_label(score: int) -> str:
@@ -169,8 +212,11 @@ def _likely_causes(checks: dict[str, Any]) -> list[str]:
     causes: list[str] = []
     cause_map = {
         "android_version": "Android OS version may be below the supported baseline for stable LMX Content deployment.",
+        "windows_os": "Windows edition or version may be unsupported for LMX Content deployment.",
+        "cpu": "CPU class may be below the recommended baseline for reliable playback.",
         "ram": "Low device memory may limit smooth HTML, URL, or VAST rendering.",
         "storage": "Low available storage can prevent updates, cached content, or normal app operation.",
+        "gpu": "Graphics adapter may be missing, generic, or below the recommended display capability.",
         "webview": "Older Android System WebView versions may have limited compatibility with HTML, URL, or VAST playback.",
         "network": "Network connectivity may be unavailable or unstable during validation.",
         "time_timezone": "Incorrect device time or timezone can affect scheduled content and reporting.",
@@ -192,8 +238,11 @@ def _recommended_actions(checks: dict[str, Any], recommendations: str | None) ->
     actions: list[str] = []
     action_map = {
         "android_version": "Upgrade the device OS or select a device running Android 11 or above where possible.",
+        "windows_os": "Use Windows 10 or Windows 11 non-server editions for Windows LMX Content deployment.",
+        "cpu": "Use an Intel Core i5/i7 class CPU or AMD Ryzen class CPU where possible.",
         "ram": "Use a device with at least 4GB RAM for best LMX Content readiness.",
         "storage": "Free device storage or use a device with at least 5GB available storage.",
+        "gpu": "Install the correct graphics driver or use a device with supported Intel UHD/Iris, AMD Vega, or dedicated graphics.",
         "webview": "Update Android System WebView where possible.",
         "network": "Confirm the device has stable internet connectivity before deployment.",
         "time_timezone": "Correct the device date, time, and timezone settings.",
@@ -238,6 +287,56 @@ def _storage_check(report: dict[str, Any]) -> CheckResult:
     if storage < 5:
         return CheckResult("storage", WARNING, "Available storage is between 2GB and 4.99GB.")
     return CheckResult("storage", PASS, "Available storage is 5GB or above.")
+
+
+def _windows_os_check(report: dict[str, Any]) -> CheckResult:
+    edition = str(report.get("windows_edition") or report.get("os_edition") or "").lower()
+    version = str(report.get("windows_version") or report.get("os_version") or "").lower()
+    combined = f"{edition} {version}"
+    if "server" in combined or "windows 7" in combined or "windows 8" in combined:
+        return CheckResult("windows_os", FAIL, "Windows edition is not supported.")
+    if "windows 10" in combined or "windows 11" in combined or version.startswith(("10", "11")):
+        return CheckResult("windows_os", PASS, "Windows 10 or Windows 11 is supported.")
+    return CheckResult("windows_os", FAIL, "Windows version could not be confirmed as Windows 10 or Windows 11.")
+
+
+def _windows_cpu_check(report: dict[str, Any]) -> CheckResult:
+    cpu = str(report.get("cpu") or report.get("processor") or "").lower()
+    if any(item in cpu for item in ["core i5", "core(tm) i5", "core i7", "core(tm) i7", "core i9", "core(tm) i9", "ryzen"]):
+        return CheckResult("cpu", PASS, "CPU meets Windows LMX Content requirements.")
+    if "pentium" in cpu or "celeron" in cpu:
+        return CheckResult("cpu", WARNING, "CPU is Intel Pentium or Celeron class.")
+    return CheckResult("cpu", FAIL, "CPU is unsupported or could not be identified.")
+
+
+def _windows_ram_check(report: dict[str, Any]) -> CheckResult:
+    ram = _float_value(report, "ram_total_gb")
+    if ram < 4:
+        return CheckResult("ram", FAIL, "RAM is below 4GB.")
+    if ram < 8:
+        return CheckResult("ram", WARNING, "RAM is between 4GB and 7.99GB.")
+    return CheckResult("ram", PASS, "RAM is 8GB or above.")
+
+
+def _windows_storage_check(report: dict[str, Any]) -> CheckResult:
+    storage = _float_value(report, "storage_available_gb")
+    if storage < 5:
+        return CheckResult("storage", FAIL, "Available storage is below 5GB.")
+    if storage < 10:
+        return CheckResult("storage", WARNING, "Available storage is between 5GB and 9.99GB.")
+    return CheckResult("storage", PASS, "Available storage is 10GB or above.")
+
+
+def _windows_gpu_check(report: dict[str, Any]) -> CheckResult:
+    gpu = str(report.get("gpu") or "").lower()
+    if not gpu:
+        return CheckResult("gpu", FAIL, "GPU was not detected.")
+    supported = ["nvidia", "geforce", "quadro", "rtx", "gtx", "radeon", "intel uhd", "intel iris", "amd vega"]
+    if any(item in gpu for item in supported):
+        return CheckResult("gpu", PASS, "GPU is supported for Windows LMX Content.")
+    if "generic" in gpu or "basic display" in gpu:
+        return CheckResult("gpu", WARNING, "Generic display adapter detected.")
+    return CheckResult("gpu", PASS, "GPU detected.")
 
 
 def _webview_check(report: dict[str, Any]) -> CheckResult:
@@ -286,6 +385,15 @@ def _lmx_version_check(report: dict[str, Any]) -> CheckResult:
     return CheckResult("lmx_version", PASS, f"LMX Content version detected: {version}.")
 
 
+def _windows_lmx_version_check(report: dict[str, Any]) -> CheckResult:
+    version = report.get("lmx_app_version") or report.get("lmx_version")
+    if not version:
+        return CheckResult("lmx_version", FAIL, "LMX Content version could not be detected.")
+    if _version_at_least(version, "1.0.34"):
+        return CheckResult("lmx_version", PASS, f"Windows LMX Content version {version} is supported.")
+    return CheckResult("lmx_version", WARNING, f"Windows LMX Content version {version} is below the recommended 1.0.34.")
+
+
 def _programmatic_check(report: dict[str, Any]) -> CheckResult:
     if report.get("vast_playback_success") or report.get("programmatic_vast_playback_success"):
         return CheckResult("programmatic_vast", PASS, "Successful VAST readiness signal was detected.")
@@ -312,6 +420,45 @@ def _pull_to_content_check(report: dict[str, Any]) -> CheckResult:
     if _version_at_least(version, "2.9.1.2"):
         return CheckResult("pull_to_content", PASS, "Android LMX version supports Pull To Content.")
     return CheckResult("pull_to_content", FAIL, "Android LMX version is below 2.9.1.2 native.")
+
+
+def _deployment_readiness(report: dict[str, Any]) -> dict[str, dict[str, str]]:
+    readiness = report.get("deployment_readiness") if isinstance(report.get("deployment_readiness"), dict) else {}
+    return {
+        "auto_login": _readiness_check(readiness.get("auto_login"), "Windows Auto Login"),
+        "auto_startup": _readiness_check(readiness.get("auto_startup"), "LMX startup on boot"),
+        "power_settings": _readiness_check(readiness.get("power_settings"), "Sleep disabled"),
+        "display_scaling": _display_scaling_check(readiness.get("display_scaling")),
+        "wake_timers": _readiness_check(readiness.get("wake_timers"), "Wake timers enabled"),
+        "windows_update_status": _windows_update_check(readiness.get("windows_update_status")),
+    }
+
+
+def _readiness_check(value: Any, label: str) -> dict[str, str]:
+    text = str(value or "").strip().upper()
+    if text == PASS:
+        return {"status": PASS, "message": f"{label} verified."}
+    if text == FAIL:
+        return {"status": FAIL, "message": f"{label} is not enabled."}
+    return {"status": WARNING, "message": f"{label} could not be verified."}
+
+
+def _display_scaling_check(value: Any) -> dict[str, str]:
+    text = str(value or "").strip().replace("%", "")
+    if text == "100":
+        return {"status": PASS, "message": "Display scaling is 100%."}
+    if text:
+        return {"status": WARNING, "message": f"Display scaling is {text}%."}
+    return {"status": WARNING, "message": "Display scaling could not be verified."}
+
+
+def _windows_update_check(value: Any) -> dict[str, str]:
+    text = str(value or "").strip().upper()
+    if text == PASS:
+        return {"status": PASS, "message": "Windows Update status is fully updated."}
+    if text == FAIL:
+        return {"status": WARNING, "message": "Windows updates may be available."}
+    return {"status": WARNING, "message": "Windows Update status could not be verified."}
 
 
 def _summary(final_status: str, failed: list[str], limitations: list[str]) -> str:

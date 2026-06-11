@@ -8,6 +8,7 @@ import {
   Eye,
   FileText,
   Info,
+  Monitor,
   MoreVertical,
   Printer,
   RefreshCw,
@@ -116,7 +117,7 @@ const sampleDevice = {
 
 function App() {
   const [devices, setDevices] = useState([sampleDevice]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState(1);
+  const [selectedDeviceId, setSelectedDeviceId] = useState(null);
   const [deviceDetail, setDeviceDetail] = useState(sampleDevice);
   const [report, setReport] = useState(sampleReport);
   const [apiOnline, setApiOnline] = useState(false);
@@ -136,7 +137,7 @@ function App() {
       const nextDevices = await deviceResponse.json();
       setApiOnline(true);
       setDevices(nextDevices.length ? nextDevices : [sampleDevice]);
-      const nextSelected = nextDevices.find((device) => device.id === selectedDeviceId) || nextDevices[0];
+      const nextSelected = (selectedDeviceId && nextDevices.find((device) => device.id === selectedDeviceId)) || nextDevices[0];
       if (nextSelected) await loadDevice(nextSelected.id);
     } catch {
       setApiOnline(false);
@@ -156,7 +157,10 @@ function App() {
       const detail = await response.json();
       setDeviceDetail(detail);
       setOwnerDraft(displayOwner(detail) === "Unassigned" ? "" : displayOwner(detail));
-      if (detail.reports?.[0]) await loadReport(detail.reports[0].id);
+      if (detail.reports?.[0]) {
+        setReport(detail.reports[0]);
+        await loadReport(detail.reports[0].id);
+      }
     } catch {
       setDeviceDetail(sampleDevice);
       setReport(sampleReport);
@@ -199,6 +203,12 @@ function App() {
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    if (selectedDevice?.id && selectedDevice.id !== deviceDetail?.id) {
+      loadDevice(selectedDevice.id);
+    }
+  }, [selectedDevice?.id, deviceDetail?.id]);
 
   return (
     <main className="app-shell">
@@ -255,6 +265,7 @@ function App() {
         <CompatibilityAssessment report={report} />
       </div>
       <DeviceReportSummary report={report} />
+      <DeploymentReadiness report={report} />
       <DeviceHistory device={deviceDetail} report={report} onSelectReport={loadReport} />
 
       <footer className="dashboard-footer">
@@ -269,6 +280,8 @@ function ExecutiveSummary({ report, apiOnline }) {
   const raw = report.raw_json || {};
   const checks = raw.checks || {};
   const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
+  const primaryReadinessKey = isWindows(raw) ? "lmx_version" : "programmatic_vast";
+  const primaryReadinessLabel = isWindows(raw) ? "LMX Version Readiness" : "Programmatic/VAST Readiness";
   return (
     <section className="section-card executive-summary">
       <SectionHeader title="Executive Summary">
@@ -296,9 +309,9 @@ function ExecutiveSummary({ report, apiOnline }) {
         />
         <SummaryCard
           icon={<ClipboardCheck size={24} />}
-          label="Programmatic/VAST Readiness"
-          value={checks.programmatic_vast?.status || "UNKNOWN"}
-          tone={statusTone(checks.programmatic_vast?.status)}
+          label={primaryReadinessLabel}
+          value={checks[primaryReadinessKey]?.status || "UNKNOWN"}
+          tone={statusTone(checks[primaryReadinessKey]?.status)}
         />
         <SummaryCard
           icon={<FileText size={24} />}
@@ -327,23 +340,13 @@ function SummaryCard({ icon, label, value, helper, tone = "", wide = false, chil
 
 function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessage, onEdit, onCancel, onOwnerChange, onSave }) {
   const raw = report.raw_json || {};
-  const rows = [
-    ["Device Name", raw.device_name || device.device_name],
-    ["Manufacturer", raw.manufacturer || device.manufacturer],
-    ["Model", raw.model || device.model],
-    ["Android Version", raw.os_version || device.os_version],
-    ["CPU Architecture", raw.cpu_architecture],
-    ["RAM", gb(raw.ram_total_gb)],
-    ["Available Storage", gb(raw.storage_available_gb)],
-    ["Screen Resolution", raw.screen_resolution],
-    ["WebView Version", raw.webview_version || device.webview_version],
-    ["LMX Version", raw.lmx_app_version || device.lmx_app_version],
-    ["Report Date", formatMalaysiaTime(report.created_at)]
-  ];
+  const rows = deviceInfoRows(raw, device, report);
 
   return (
     <section className="section-card">
-      <SectionHeader title="Device Information" />
+      <SectionHeader title="Device Information">
+        <PlatformBadge platform={raw.platform || device.platform} />
+      </SectionHeader>
       <div className="owner-row compact-owner">
         <div>
           <span>Media Owner / Client</span>
@@ -373,12 +376,14 @@ function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessa
 }
 
 function CompatibilityAssessment({ report }) {
-  const checks = report.raw_json?.checks || {};
+  const raw = report.raw_json || {};
+  const checks = raw.checks || {};
+  const keys = isWindows(raw) ? windowsCompatibilityKeys : [...deviceCompatibilityKeys, ...lmxReadinessKeys];
   return (
     <section className="section-card">
       <SectionHeader title="Device Compatibility" />
       <div className="assessment-grid">
-        {[...deviceCompatibilityKeys, ...lmxReadinessKeys].map((key) => (
+        {keys.map((key) => (
           <AssessmentCard key={key} label={checkLabels[key]} check={checks[key]} />
         ))}
       </div>
@@ -406,6 +411,22 @@ function DeviceReportSummary({ report }) {
   );
 }
 
+function DeploymentReadiness({ report }) {
+  const raw = report.raw_json || {};
+  const readiness = raw.deployment_readiness;
+  if (!isWindows(raw) || !readiness) return null;
+  return (
+    <section className="section-card">
+      <SectionHeader title="Deployment Readiness" />
+      <div className="assessment-grid deployment-grid">
+        {Object.entries(readiness).map(([key, check]) => (
+          <AssessmentCard key={key} label={deploymentLabels[key] || key} check={check} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function DeviceHistory({ device, report, onSelectReport }) {
   const reports = device.reports?.length ? device.reports : [report];
   return (
@@ -427,7 +448,12 @@ function DeviceHistory({ device, report, onSelectReport }) {
             {reports.map((item) => (
               <tr key={item.id}>
                 <td>{formatMalaysiaTime(item.created_at)}</td>
-                <td>{device.device_name}</td>
+                <td>
+                  <div className="device-cell">
+                    <span>{device.device_name}</span>
+                    <PlatformBadge platform={device.platform || report.raw_json?.platform} />
+                  </div>
+                </td>
                 <td><StatusPill status={item.final_status} /></td>
                 <td>{item.score} / 100</td>
                 <td>{item.final_recommendation || report.final_recommendation || "-"}</td>
@@ -482,11 +508,16 @@ function SectionHeader({ title, children }) {
 function InfoItem({ label, value }) {
   return (
     <div className="info-item">
-      <Smartphone size={15} />
+      {label.toLowerCase().includes("windows") || label.toLowerCase().includes("computer") ? <Monitor size={15} /> : <Smartphone size={15} />}
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
   );
+}
+
+function PlatformBadge({ platform }) {
+  const label = String(platform || "Android").toUpperCase();
+  return <span className={`platform-badge ${label.toLowerCase()}`}>{label}</span>;
 }
 
 function AssessmentCard({ label, check }) {
@@ -531,11 +562,27 @@ function ListOrNone({ items }) {
 
 const deviceCompatibilityKeys = ["android_version", "ram", "storage", "webview", "network", "time_timezone"];
 const lmxReadinessKeys = ["lmx_app_installed", "lmx_app_launch", "programmatic_vast", "pull_to_content"];
+const windowsCompatibilityKeys = [
+  "windows_os",
+  "cpu",
+  "ram",
+  "storage",
+  "gpu",
+  "network",
+  "time_timezone",
+  "lmx_app_installed",
+  "lmx_version",
+  "lmx_app_launch",
+  "pull_to_content"
+];
 
 const checkLabels = {
   android_version: "Android Version",
+  windows_os: "Windows Version",
+  cpu: "CPU",
   ram: "RAM",
   storage: "Storage",
+  gpu: "GPU",
   webview: "WebView",
   network: "Network",
   time_timezone: "Time / Timezone",
@@ -544,6 +591,56 @@ const checkLabels = {
   programmatic_vast: "Programmatic / VAST Readiness",
   pull_to_content: "Pull To Content Readiness"
 };
+
+const deploymentLabels = {
+  auto_login: "Auto Login",
+  auto_startup: "Auto Startup",
+  power_settings: "Power Settings",
+  display_scaling: "Display Scaling",
+  wake_timers: "Wake Timers",
+  windows_update_status: "Windows Update Status"
+};
+
+function deviceInfoRows(raw, device, report) {
+  if (isWindows(raw)) {
+    return [
+      ["Computer Name", raw.computer_name || raw.device_name || device.device_name],
+      ["Manufacturer", raw.manufacturer || device.manufacturer],
+      ["Model", raw.model || device.model],
+      ["Windows Edition", raw.windows_edition],
+      ["Windows Version", raw.windows_version || raw.os_version || device.os_version],
+      ["Build Number", raw.windows_build_number],
+      ["System Type", raw.system_type],
+      ["CPU", raw.cpu],
+      ["CPU Architecture", raw.cpu_architecture],
+      ["RAM", gb(raw.ram_total_gb)],
+      ["Storage Available", gb(raw.storage_available_gb)],
+      ["GPU", raw.gpu],
+      ["Screen Resolution", raw.screen_resolution],
+      ["IP Address", raw.ip_address],
+      ["Timezone", raw.timezone],
+      ["LMX Version", raw.lmx_app_version || device.lmx_app_version],
+      ["Report Date", formatMalaysiaTime(report.created_at)]
+    ];
+  }
+  return [
+    ["Device Name", raw.device_name || device.device_name],
+    ["Manufacturer", raw.manufacturer || device.manufacturer],
+    ["Model", raw.model || device.model],
+    ["Android Version", raw.os_version || device.os_version],
+    ["CPU Architecture", raw.cpu_architecture],
+    ["RAM", gb(raw.ram_total_gb)],
+    ["Available Storage", gb(raw.storage_available_gb)],
+    ["Screen Resolution", raw.screen_resolution],
+    ["WebView Version", raw.webview_version || device.webview_version],
+    ["LMX Version", raw.lmx_app_version || device.lmx_app_version],
+    ["Report Date", formatMalaysiaTime(report.created_at)]
+  ];
+}
+
+function isWindows(raw = {}) {
+  return String(raw.platform || "").toLowerCase() === "windows";
+}
 
 function displayOwner(device = {}, raw = {}) {
   return device.media_owner || raw.media_owner || raw.client_name || "Unassigned";
@@ -607,8 +704,11 @@ function buildDeviceReportSummary(report, raw) {
 function likelyCauses(checks) {
   const map = {
     android_version: "Android OS version may be below the supported baseline for stable LMX Content deployment.",
+    windows_os: "Windows edition or version may be unsupported for LMX Content deployment.",
+    cpu: "CPU class may be below the recommended baseline for reliable playback.",
     ram: "Low device memory may limit smooth HTML, URL, or VAST rendering.",
     storage: "Low available storage can prevent updates, cached content, or normal app operation.",
+    gpu: "Graphics adapter may be missing, generic, or below the recommended display capability.",
     webview: "Older Android System WebView versions may have limited compatibility with HTML, URL, or VAST playback.",
     network: "Network connectivity may be unavailable or unstable during validation.",
     time_timezone: "Incorrect device time or timezone can affect scheduled content and reporting.",
@@ -627,8 +727,11 @@ function likelyCauses(checks) {
 function recommendedActions(checks, recommendations) {
   const map = {
     android_version: "Upgrade the device OS or select a device running Android 11 or above where possible.",
+    windows_os: "Use Windows 10 or Windows 11 non-server editions for Windows LMX Content deployment.",
+    cpu: "Use an Intel Core i5/i7 class CPU or AMD Ryzen class CPU where possible.",
     ram: "Use a device with at least 4GB RAM for best LMX Content readiness.",
     storage: "Free device storage or use a device with at least 5GB available storage.",
+    gpu: "Install the correct graphics driver or use supported Intel UHD/Iris, AMD Vega, or dedicated graphics.",
     webview: "Update Android System WebView where possible.",
     network: "Confirm the device has stable internet connectivity before deployment.",
     time_timezone: "Correct the device date, time, and timezone settings.",

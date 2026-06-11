@@ -230,6 +230,24 @@ input {
   margin: 0;
 }
 
+.platform-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: #dbeafe;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.platform-badge.windows {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
 .executive-grid {
   display: grid;
   grid-template-columns: 1.05fr 1.35fr 1fr 1fr 1fr;
@@ -409,6 +427,10 @@ input {
   gap: 4px 28px;
 }
 
+.deployment-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .assessment-card {
   display: flex;
   align-items: center;
@@ -566,6 +588,12 @@ li {
   gap: 8px;
 }
 
+.device-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .ghost-icon {
   width: 32px;
   min-height: 32px;
@@ -608,7 +636,8 @@ li {
 
 @media (max-width: 1180px) {
   .executive-grid,
-  .assessment-grid {
+  .assessment-grid,
+  .deployment-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -657,6 +686,7 @@ li {
 
   .executive-grid,
   .assessment-grid,
+  .deployment-grid,
   .split-grid-halves,
   .split-grid-summary,
   .summary-grid {
