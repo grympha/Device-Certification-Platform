@@ -3,1330 +3,448 @@ package com.lmx.certification
 import android.app.Activity
 import android.app.ActivityManager
 import android.content.Context
-import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageInfo
-import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.StatFs
-import android.provider.Settings
 import android.util.Log
-import android.view.Gravity
-import android.view.View
 import android.webkit.WebView
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.documentfile.provider.DocumentFile
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.LinkedHashSet
 import java.util.Locale
 import java.util.TimeZone
 import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
-    private val readStorageRequestCode = 42
-    private val selectLmxFolderRequestCode = 43
-    private val prefsName = "lmx_agent_prefs"
-    private val selectedTreeUriKey = "selected_lmx_tree_uri"
-    private val selectedTreeDisplayNameKey = "selected_lmx_tree_display_name"
     private val logTag = "LMXCertification"
-    private val lmxPackage = BuildConfig.LMX_PACKAGE_NAME
+    private val lmxPackageName = BuildConfig.LMX_PACKAGE_NAME
     private val backendUrl = BuildConfig.BACKEND_URL
-    private val mediaDirPath = "/sdcard/Android/data/$lmxPackage/files/QUAD42MEDIA/"
-    private val logDirPath = "/sdcard/Android/data/$lmxPackage/files/QUAD42LOG/"
-    private val auditFilePath = "/sdcard/Android/data/$lmxPackage/files/QUAD42AUDIT/appender.csv"
-    private lateinit var output: TextView
-    private lateinit var status: TextView
-    private lateinit var storageAccessCard: TextView
-    private lateinit var storageNotice: TextView
-    private lateinit var debugInfo: TextView
-    private lateinit var lmxHealthOutput: TextView
-    private lateinit var latestReport: JSONObject
-    private lateinit var prefs: SharedPreferences
-    private var lastDiagnosticTime = "Not run"
+
+    private lateinit var statusView: TextView
+    private lateinit var readinessView: TextView
+    private lateinit var outputView: TextView
+    private lateinit var debugView: TextView
+    private var latestReport = JSONObject()
+    private var lastDiagnosticTime = "Not run yet"
     private var lastUploadStatus = "Not uploaded"
     private var lastUploadError = ""
-    private var waitingForStoragePermission = false
-    private val permissionFlowMarkers = listOf(
-        "MANAGE_EXTERNAL_STORAGE",
-        "ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
-        "ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION",
-        "ACTION_OPEN_DOCUMENT_TREE",
-        "DocumentFile",
-        "selected_lmx_tree_uri",
-        "SAF_FOLDER_ACCESS",
-        "Select LMX Folder"
-    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
         buildUi()
-        logPermissionFlowMarkers()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-            showStoragePermissionBanner()
-        }
-        runDiagnostics()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        waitingForStoragePermission = false
-        if (this::status.isInitialized) {
-            val storageAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                Environment.isExternalStorageManager()
-            } else {
-                hasStorageAccess()
-            }
-            updateStorageAccessUi(storageAccess)
-            runDiagnostics()
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != readStorageRequestCode) return
-        waitingForStoragePermission = false
-        runDiagnostics()
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != selectLmxFolderRequestCode) return
-        if (resultCode != RESULT_OK || data?.data == null) {
-            status.text = "LMX folder selection cancelled."
-            runDiagnostics()
-            return
-        }
-
-        val treeUri = data.data ?: return
-        val flags = data.flags and (
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-        try {
-            contentResolver.takePersistableUriPermission(treeUri, flags)
-        } catch (error: Exception) {
-            Log.w(logTag, "Unable to persist SAF folder permission.", error)
-        }
-
-        val root = DocumentFile.fromTreeUri(this, treeUri)
-        val validation = validateSafRoot(root)
-        prefs.edit()
-            .putString(selectedTreeUriKey, treeUri.toString())
-            .putString(selectedTreeDisplayNameKey, selectedFolderDisplayName(root, validation.valid))
-            .apply()
-
-        status.text = if (validation.valid) {
-            "LMX folder selected."
-        } else {
-            "Selected folder does not appear to be the LMX Content files folder. Please select Android/data/$lmxPackage/files."
-        }
         runDiagnostics()
     }
 
     private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
+            setPadding(28, 28, 28, 28)
         }
 
-        status = TextView(this).apply {
-            textSize = 28f
-            gravity = Gravity.CENTER
+        root.addView(TextView(this).apply {
+            text = "LMX Device Certification"
+            textSize = 24f
+            setPadding(0, 0, 0, 12)
+        })
+
+        statusView = TextView(this).apply {
+            text = "Preparing diagnostics..."
+            textSize = 18f
             setPadding(0, 0, 0, 16)
         }
+        root.addView(statusView)
 
-        storageAccessCard = TextView(this).apply {
-            textSize = 16f
-            setPadding(16, 16, 16, 16)
-            setTextIsSelectable(true)
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, 18)
         }
 
-        storageNotice = TextView(this).apply {
-            textSize = 14f
-            setPadding(16, 16, 16, 16)
-            setTextIsSelectable(true)
-        }
-
-        output = TextView(this).apply {
-            textSize = 14f
-            setTextIsSelectable(true)
-        }
-
-        debugInfo = TextView(this).apply {
-            textSize = 13f
-            setPadding(0, 0, 0, 24)
-            setTextIsSelectable(true)
-        }
-
-        lmxHealthOutput = TextView(this).apply {
-            textSize = 15f
-            setPadding(0, 0, 0, 24)
-            setTextIsSelectable(true)
-        }
-
-        val uploadButton = Button(this).apply {
+        actions.addView(Button(this).apply {
             text = "Upload Report"
             setOnClickListener { uploadReport() }
-        }
-
-        val backendUrlButton = Button(this).apply {
+        })
+        actions.addView(Button(this).apply {
             text = "Show Backend URL"
-            setOnClickListener { showBackendUrl() }
-        }
-
-        val storageButton = Button(this).apply {
-            text = "Grant All Files Access"
-            setOnClickListener { openStoragePermissionSettings() }
-        }
-
-        val selectFolderButton = Button(this).apply {
-            text = "Select LMX Folder"
-            setOnClickListener { openLmxFolderPicker() }
-        }
-
-        val clearFolderButton = Button(this).apply {
-            text = "Clear Selected LMX Folder"
-            setOnClickListener { clearSelectedLmxFolder() }
-        }
-
-        val launchButton = Button(this).apply {
+            setOnClickListener {
+                lastUploadStatus = "Backend URL: $backendUrl"
+                updateDebugInfo()
+            }
+        })
+        actions.addView(Button(this).apply {
             text = "Launch LMX Content"
             setOnClickListener { launchLmxContent() }
+        })
+        root.addView(actions)
+
+        readinessView = TextView(this).apply {
+            textSize = 15f
+            setPadding(0, 0, 0, 16)
         }
+        root.addView(readinessView)
 
-        val scroll = ScrollView(this).apply {
-            addView(output)
+        debugView = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, 0, 0, 16)
         }
+        root.addView(debugView)
 
-        root.addView(status)
-        root.addView(storageAccessCard)
-        root.addView(storageNotice)
-        root.addView(uploadButton)
-        root.addView(backendUrlButton)
-        root.addView(storageButton)
-        root.addView(selectFolderButton)
-        root.addView(clearFolderButton)
-        root.addView(launchButton)
-        root.addView(debugInfo)
-        root.addView(lmxHealthOutput)
-        root.addView(scroll)
-        setContentView(root)
-        updateDebugInfo()
-    }
-
-    private fun showStoragePermissionBanner() {
-        updateStorageAccessUi(false)
-    }
-
-    private fun updateStorageAccessUi(storageAccess: Boolean) {
-        val safStatus = safAccessStatus()
-        val selectedFolder = prefs.getString(selectedTreeDisplayNameKey, "") ?: ""
-        val selectedLine = if (selectedFolder.isNotBlank()) "\nSelected Folder: $selectedFolder" else ""
-        val accessMethod = if (storageAccess) "DIRECT_FILE_ACCESS" else if (safStatus == "GRANTED") "SAF_FOLDER_ACCESS" else "UNAVAILABLE"
-        storageAccessCard.text = """
-            Storage Access
-            Status: ${if (storageAccess) "GRANTED" else "DENIED"}
-            Access Method: $accessMethod
-            SAF Access: $safStatus$selectedLine
-        """.trimIndent()
-
-        storageNotice.text = if (!storageAccess && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && safStatus != "GRANTED") {
-            """
-                Storage Access Required
-
-                LMX Playback Health needs All Files Access or a selected LMX folder to read LMX media, audit, and log files from this device. Without this access, Content Download Status, Playback Validation, and Log Validation will be unavailable.
-
-                Tap Grant All Files Access, or tap Select LMX Folder and choose Android/data/com.qruize.quad42.media.app/files.
-            """.trimIndent()
-        } else {
-            ""
+        outputView = TextView(this).apply {
+            textSize = 13f
+            setTextIsSelectable(true)
+            setPadding(0, 10, 0, 0)
         }
+        root.addView(outputView)
+
+        setContentView(ScrollView(this).apply { addView(root) })
     }
 
     private fun runDiagnostics() {
         latestReport = collectReport()
-        updateStorageAccessUi(latestReport.optString("storage_access_status") == "GRANTED")
         val evaluation = evaluate(latestReport)
         latestReport.put("checks", evaluation.getJSONObject("checks"))
-        latestReport.put("device_compatibility", evaluation)
-        latestReport.put("final_recommendation", finalRecommendation(evaluation.getString("final_status"), latestReport.optString("overall_health_status", "UNKNOWN")))
-        val finalStatus = evaluation.getString("final_status")
+        latestReport.put("final_status", evaluation.getString("final_status"))
+        latestReport.put("score", evaluation.getInt("score"))
+        latestReport.put("summary", evaluation.getString("summary"))
+        latestReport.put("recommendations", evaluation.getString("recommendations"))
+        latestReport.put("final_recommendation", finalRecommendation(evaluation.getString("final_status")))
         lastDiagnosticTime = latestReport.optString("system_time", currentIsoTime())
-        status.text = finalStatus
-        lmxHealthOutput.text = buildLmxHealthSummary(latestReport)
-        output.text = latestReport.toString(2)
-        saveReport(latestReport)
+
+        statusView.text = "${evaluation.getString("final_status")} - Score ${evaluation.getInt("score")}"
+        readinessView.text = buildReadinessSummary(latestReport, evaluation)
+        outputView.text = latestReport.toString(2)
         updateDebugInfo()
+        saveReport(latestReport)
     }
 
     private fun collectReport(): JSONObject {
-        val memory = ActivityManager.MemoryInfo()
-        (getSystemService(ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
-        val storage = StatFs(Environment.getDataDirectory().path)
-        val metrics = resources.displayMetrics
-        val packageInfo = getPackageInfo(lmxPackage)
-        val launchIntent = packageManager.getLaunchIntentForPackage(lmxPackage)
+        val metrics = memoryMetrics()
+        val storage = storageMetrics()
+        val packageInfo = packageInfo(lmxPackageName)
+        val launchable = packageManager.getLaunchIntentForPackage(lmxPackageName) != null
 
-        val storageAccess = hasStorageAccess()
-        val storageAccessStatus = if (storageAccess) "GRANTED" else "DENIED"
-        val safStatus = safAccessStatus()
-        val selectedTreeUri = prefs.getString(selectedTreeUriKey, "") ?: ""
-        val selectedTreeDisplayName = prefs.getString(selectedTreeDisplayNameKey, "") ?: ""
-
-        val report = JSONObject()
-            .put("device_name", "${Build.MANUFACTURER} ${Build.MODEL}")
+        return JSONObject()
+            .put("device_name", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
             .put("platform", "Android")
-            .put("manufacturer", Build.MANUFACTURER)
-            .put("model", Build.MODEL)
-            .put("os_version", Build.VERSION.RELEASE)
+            .put("manufacturer", Build.MANUFACTURER ?: "")
+            .put("model", Build.MODEL ?: "")
+            .put("os_version", Build.VERSION.RELEASE ?: "")
             .put("android_sdk", Build.VERSION.SDK_INT)
             .put("cpu_architecture", Build.SUPPORTED_ABIS.firstOrNull() ?: "")
-            .put("ram_total_gb", bytesToGb(memory.totalMem))
-            .put("ram_available_gb", bytesToGb(memory.availMem))
-            .put("storage_total_gb", bytesToGb(storage.blockCountLong * storage.blockSizeLong))
-            .put("storage_available_gb", bytesToGb(storage.availableBlocksLong * storage.blockSizeLong))
-            .put("screen_resolution", "${metrics.widthPixels}x${metrics.heightPixels}")
-            .put("screen_density", metrics.densityDpi)
+            .put("ram_total_gb", metrics.first)
+            .put("ram_available_gb", metrics.second)
+            .put("storage_total_gb", storage.first)
+            .put("storage_available_gb", storage.second)
+            .put("screen_resolution", screenResolution())
+            .put("screen_density", resources.displayMetrics.densityDpi)
             .put("internet_connected", isOnline())
             .put("system_time", currentIsoTime())
             .put("timezone", TimeZone.getDefault().id)
-            .put("webview_version", getWebViewVersion())
-            .put("hardware_acceleration_ready", window.decorView.layerType != View.LAYER_TYPE_SOFTWARE)
-            .put("lmx_app_package", lmxPackage)
+            .put("webview_version", webViewVersion())
+            .put("hardware_acceleration_ready", true)
+            .put("lmx_app_package", lmxPackageName)
             .put("lmx_app_installed", packageInfo != null)
-            .put("lmx_app_version", packageVersionName(packageInfo))
-            .put("lmx_app_launchable", launchIntent != null)
-            .put("permission_status", JSONObject()
-                .put("internet", permissionStatus(android.Manifest.permission.INTERNET))
-                .put("network_state", permissionStatus(android.Manifest.permission.ACCESS_NETWORK_STATE))
+            .put("lmx_app_version", packageInfo?.versionName?.toString() ?: "")
+            .put("lmx_app_launchable", launchable)
+            .put(
+                "permission_status",
+                JSONObject()
+                    .put("internet", "declared")
+                    .put("network_state", "declared")
             )
-            .put("storage_access_status", storageAccessStatus)
-            .put("storage_access_method", "UNAVAILABLE")
-            .put("saf_access_status", safStatus)
-            .put("selected_lmx_tree_uri", selectedTreeUri)
-            .put("selected_lmx_tree_display_name", selectedTreeDisplayName)
-            .put("selected_lmx_folder_valid", false)
-            .put("android_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
-
-        val lmxAppStatus = collectLmxAppStatus(packageInfo, launchIntent)
-        report.put("lmx_app_status", lmxAppStatus)
-
-        val directHealth = if (storageAccess) collectDirectPlaybackHealth() else null
-        val safHealth = if (directHealth == null || directHealth.hasUnavailableModule()) {
-            collectSafPlaybackHealth()
-        } else {
-            null
-        }
-        val playbackHealth = when {
-            directHealth != null && !directHealth.hasUnavailableModule() -> directHealth
-            safHealth != null && safHealth.valid -> safHealth
-            directHealth != null && storageAccess -> directHealth
-            else -> null
-        }
-
-        if (playbackHealth == null || !playbackHealth.valid) {
-            val unavailable = playbackHealthUnavailable()
-            if (safHealth != null) {
-                report.put("selected_lmx_folder_valid", safHealth.valid)
-            }
-            return report
-                .put("storage_access_method", "UNAVAILABLE")
-                .put("overall_health_status", "UNKNOWN")
-                .put("overall_health", unavailable)
-                .put("lmx_playback_health_unavailable", unavailable)
-                .put("troubleshooting_recommendation", unavailable.getString("reason"))
-        }
-
-        val contentDownloadStatus = playbackHealth.content
-        val playbackValidation = playbackHealth.playback
-        val logValidation = playbackHealth.logs
-        val overallHealth = calculateOverallHealth(lmxAppStatus, contentDownloadStatus, playbackValidation, logValidation)
-
-        return report
-            .put("storage_access_method", playbackHealth.method)
-            .put("saf_access_status", safStatus)
-            .put("selected_lmx_tree_uri", selectedTreeUri)
-            .put("selected_lmx_tree_display_name", selectedTreeDisplayName)
-            .put("selected_lmx_folder_valid", playbackHealth.method == "SAF_FOLDER_ACCESS")
-            .put("content_download_status", contentDownloadStatus)
-            .put("playback_validation", playbackValidation)
-            .put("log_validation", logValidation)
-            .put("overall_health_status", overallHealth.getString("status"))
-            .put("overall_health", overallHealth)
-            .put("troubleshooting_recommendation", overallHealth.getString("recommendation"))
-    }
-
-    private fun collectLmxAppStatus(packageInfo: PackageInfo?, launchIntent: Intent?): JSONObject {
-        val installed = packageInfo != null
-        val launchable = launchIntent != null
-        val status = if (installed && launchable) "PASS" else "FAIL"
-        val message = when {
-            !installed -> "LMX Content is not installed."
-            !launchable -> "LMX Content is installed but cannot be launched."
-            else -> "LMX Content is installed and launchable."
-        }
-
-        return JSONObject()
-            .put("status", status)
-            .put("message", message)
-            .put("installed", installed)
-            .put("package_name", lmxPackage)
-            .put("version_name", packageVersionName(packageInfo))
-            .put("launchable", launchable)
-    }
-
-    private fun collectContentDownloadStatus(): JSONObject {
-        val mediaDir = File(mediaDirPath)
-        if (!mediaDir.exists()) {
-            return JSONObject()
-                .put("status", "FAIL")
-                .put("message", "Media folder is missing.")
-                .put("media_folder_path", mediaDirPath)
-                .put("media_folder_exists", false)
-                .put("downloaded_file_count", 0)
-                .put("total_download_size_bytes", 0)
-        }
-
-        val files = safeCollectFiles(mediaDir) ?: return unknownResult(
-            "Content Download",
-            "Media folder exists but cannot be read. Android storage restrictions may be blocking access."
-        )
-            .put("media_folder_path", mediaDirPath)
-            .put("media_folder_exists", true)
-
-        val mediaFiles = files.filter { it.isFile }
-        val totalSize = mediaFiles.sumOf { safeFileLength(it) }
-        val lastModified = mediaFiles.maxOfOrNull { it.lastModified() } ?: 0L
-        val minutesSinceUpdate = if (lastModified > 0) (System.currentTimeMillis() - lastModified) / 60_000 else null
-        val recent = minutesSinceUpdate != null && minutesSinceUpdate <= 1_440
-        val status = when {
-            mediaFiles.isEmpty() || totalSize <= 0 -> "FAIL"
-            !recent -> "WARNING"
-            else -> "PASS"
-        }
-        val message = when (status) {
-            "PASS" -> "Media files are present and recently updated."
-            "WARNING" -> "Media files are present but no recent content update was detected."
-            else -> "Media folder exists but no media files were found."
-        }
-
-        return JSONObject()
-            .put("status", status)
-            .put("message", message)
-            .put("media_folder_path", mediaDirPath)
-            .put("media_folder_exists", true)
-            .put("downloaded_file_count", mediaFiles.size)
-            .put("total_download_size_bytes", totalSize)
-            .put("total_download_size_mb", bytesToMb(totalSize))
-            .put("last_content_update_timestamp", if (lastModified > 0) formatMillis(lastModified) else "")
-            .put("minutes_since_last_update", minutesSinceUpdate ?: JSONObject.NULL)
-            .put("recent_update_threshold_minutes", 1_440)
-    }
-
-    private fun collectPlaybackValidation(): JSONObject {
-        val auditFile = File(auditFilePath)
-        if (!auditFile.exists()) {
-            return JSONObject()
-                .put("status", "FAIL")
-                .put("message", "Audit file is missing.")
-                .put("audit_file_path", auditFilePath)
-                .put("audit_file_exists", false)
-                .put("total_playback_records", 0)
-        }
-
-        val rows = try {
-            auditFile.readLines().filter { it.isNotBlank() }
-        } catch (error: Exception) {
-            Log.w(logTag, "Unable to read audit file: $auditFilePath", error)
-            return unknownResult(
-                "Playback",
-                "Audit file exists but cannot be read. Android storage restrictions may be blocking access."
-            )
-                .put("audit_file_path", auditFilePath)
-                .put("audit_file_exists", true)
-        }
-
-        if (rows.size <= 1) {
-            return JSONObject()
-                .put("status", "FAIL")
-                .put("message", "Audit file exists but no playback records were found.")
-                .put("audit_file_path", auditFilePath)
-                .put("audit_file_exists", true)
-                .put("total_playback_records", 0)
-        }
-
-        val records = rows.drop(1).mapNotNull { parseAuditRecord(it) }
-        if (records.isEmpty()) {
-            return JSONObject()
-                .put("status", "FAIL")
-                .put("message", "Audit file exists but no valid playback records were found.")
-                .put("audit_file_path", auditFilePath)
-                .put("audit_file_exists", true)
-                .put("total_playback_records", 0)
-        }
-
-        val latestRecord = records.maxByOrNull { it.timestampMillis ?: 0L } ?: records.last()
-        val uniqueContents = LinkedHashSet<String>()
-        val contentTypes = LinkedHashSet<String>()
-        records.forEach { record ->
-            if (record.content.isNotBlank()) uniqueContents.add(record.content)
-            if (record.contentType.isNotBlank()) contentTypes.add(record.contentType)
-        }
-        val minutesSincePlayback = latestRecord.timestampMillis?.let { (System.currentTimeMillis() - it) / 60_000 }
-        val active = minutesSincePlayback != null && minutesSincePlayback <= 30
-        val status = if (active) "PASS" else "WARNING"
-        val message = if (active) {
-            "Playback records are active."
-        } else {
-            "Playback records exist but last playback is older than 30 minutes."
-        }
-
-        return JSONObject()
-            .put("status", status)
-            .put("message", message)
-            .put("audit_file_path", auditFilePath)
-            .put("audit_file_exists", true)
-            .put("total_playback_records", records.size)
-            .put("last_playback_date_time", latestRecord.displayDateTime)
-            .put("minutes_since_last_playback", minutesSincePlayback ?: JSONObject.NULL)
-            .put("last_played_content", latestRecord.content)
-            .put("current_or_last_playlist", latestRecord.playlist)
-            .put("unique_content_count", uniqueContents.size)
-            .put("content_types_played", contentTypes.joinToString(", "))
-            .put("active_playback_threshold_minutes", 30)
-    }
-
-    private fun collectLogValidation(): JSONObject {
-        val logDir = File(logDirPath)
-        if (!logDir.exists()) {
-            return JSONObject()
-                .put("status", "FAIL")
-                .put("message", "Log folder is missing.")
-                .put("log_folder_path", logDirPath)
-                .put("log_folder_exists", false)
-        }
-
-        val files = safeCollectFiles(logDir) ?: return unknownResult(
-            "Logs",
-            "Log folder exists but cannot be read. Android storage restrictions may be blocking access."
-        )
-            .put("log_folder_path", logDirPath)
-            .put("log_folder_exists", true)
-
-        val logFiles = files.filter { it.isFile }
-        val crashFiles = logFiles.filter { file ->
-            val name = file.name.lowercase(Locale.US)
-            name.contains("crash") || name.contains("exception") || name.contains("fatal")
-        }
-        val latestLog = logFiles.maxOfOrNull { it.lastModified() } ?: 0L
-        val latestCrash = crashFiles.maxOfOrNull { it.lastModified() } ?: 0L
-        val status = when {
-            crashFiles.isNotEmpty() -> "WARNING"
-            logFiles.isNotEmpty() -> "PASS"
-            else -> "WARNING"
-        }
-        val message = when {
-            crashFiles.isNotEmpty() -> "Crash log files were found."
-            logFiles.isNotEmpty() -> "Normal log files were found."
-            else -> "Log folder exists but no log files were found."
-        }
-
-        return JSONObject()
-            .put("status", status)
-            .put("message", message)
-            .put("log_folder_path", logDirPath)
-            .put("log_folder_exists", true)
-            .put("log_files_found", logFiles.size)
-            .put("crash_log_files_found", crashFiles.size)
-            .put("latest_log_update_timestamp", if (latestLog > 0) formatMillis(latestLog) else "")
-            .put("latest_crash_log_timestamp", if (latestCrash > 0) formatMillis(latestCrash) else "")
-    }
-
-    private data class PlaybackHealth(
-        val method: String,
-        val valid: Boolean,
-        val content: JSONObject,
-        val playback: JSONObject,
-        val logs: JSONObject
-    ) {
-        fun hasUnavailableModule(): Boolean {
-            return listOf(content, playback, logs).any {
-                val status = it.optString("status")
-                status == "UNKNOWN" || status == "FAIL"
-            }
-        }
-    }
-
-    private data class SafValidation(
-        val valid: Boolean,
-        val root: DocumentFile?
-    )
-
-    private fun collectDirectPlaybackHealth(): PlaybackHealth {
-        return PlaybackHealth(
-            method = "DIRECT_FILE_ACCESS",
-            valid = true,
-            content = collectContentDownloadStatus(),
-            playback = collectPlaybackValidation(),
-            logs = collectLogValidation()
-        )
-    }
-
-    private fun collectSafPlaybackHealth(): PlaybackHealth? {
-        val treeUriText = prefs.getString(selectedTreeUriKey, "") ?: ""
-        if (treeUriText.isBlank()) return null
-        val treeUri = Uri.parse(treeUriText)
-        val tree = DocumentFile.fromTreeUri(this, treeUri) ?: return null
-        val validation = validateSafRoot(tree)
-        if (!validation.valid || validation.root == null) {
-            return PlaybackHealth(
-                method = "SAF_FOLDER_ACCESS",
-                valid = false,
-                content = unknownResult("Content Download", "Selected folder does not appear to be the LMX Content files folder."),
-                playback = unknownResult("Playback", "Selected folder does not appear to be the LMX Content files folder."),
-                logs = unknownResult("Logs", "Selected folder does not appear to be the LMX Content files folder.")
-            )
-        }
-        val root = validation.root
-        return PlaybackHealth(
-            method = "SAF_FOLDER_ACCESS",
-            valid = true,
-            content = collectSafContentDownloadStatus(root),
-            playback = collectSafPlaybackValidation(root),
-            logs = collectSafLogValidation(root)
-        )
-    }
-
-    private fun collectSafContentDownloadStatus(root: DocumentFile): JSONObject {
-        val mediaDir = root.findDirectory("QUAD42MEDIA") ?: return unknownResult(
-            "Content Download",
-            "QUAD42MEDIA folder is missing from selected LMX folder."
-        )
-            .put("media_folder_found", false)
-
-        val files = collectDocumentFiles(mediaDir).filter { it.isFile }
-        val totalSize = files.sumOf { it.length().coerceAtLeast(0L) }
-        val lastModified = files.maxOfOrNull { it.lastModified() } ?: 0L
-        val minutesSinceUpdate = if (lastModified > 0) (System.currentTimeMillis() - lastModified) / 60_000 else null
-        val recent = minutesSinceUpdate != null && minutesSinceUpdate <= 1_440
-        val status = when {
-            files.isEmpty() || totalSize <= 0 -> "FAIL"
-            !recent -> "WARNING"
-            else -> "PASS"
-        }
-        val message = when (status) {
-            "PASS" -> "Media files are present and recently updated."
-            "WARNING" -> "Media files are present but no recent content update was detected."
-            else -> "Media folder exists but no media files were found."
-        }
-        return JSONObject()
-            .put("status", status)
-            .put("message", message)
-            .put("media_folder_found", true)
-            .put("downloaded_file_count", files.size)
-            .put("total_download_size_bytes", totalSize)
-            .put("total_download_size_mb", bytesToMb(totalSize))
-            .put("last_content_update_timestamp", if (lastModified > 0) formatMillis(lastModified) else "")
-            .put("minutes_since_last_update", minutesSinceUpdate ?: JSONObject.NULL)
-            .put("recent_update_threshold_minutes", 1_440)
-    }
-
-    private fun collectSafPlaybackValidation(root: DocumentFile): JSONObject {
-        val auditDir = root.findDirectory("QUAD42AUDIT") ?: return unknownResult(
-            "Playback",
-            "QUAD42AUDIT folder is missing from selected LMX folder."
-        )
-            .put("audit_file_found", false)
-        val auditFile = auditDir.findFile("appender.csv") ?: return unknownResult(
-            "Playback",
-            "QUAD42AUDIT/appender.csv is missing from selected LMX folder."
-        )
-            .put("audit_file_found", false)
-
-        val rows = readDocumentText(auditFile)
-            ?.lineSequence()
-            ?.filter { it.isNotBlank() }
-            ?.toList()
-            ?: return unknownResult("Playback", "Unable to read QUAD42AUDIT/appender.csv through SAF.")
-                .put("audit_file_found", true)
-
-        if (rows.size <= 1) {
-            return JSONObject()
-                .put("status", "FAIL")
-                .put("message", "Audit file exists but no playback records were found.")
-                .put("audit_file_found", true)
-                .put("total_playback_records", 0)
-        }
-
-        val records = rows.drop(1).mapNotNull { parseAuditRecord(it) }
-        if (records.isEmpty()) {
-            return JSONObject()
-                .put("status", "FAIL")
-                .put("message", "Audit file exists but no valid playback records were found.")
-                .put("audit_file_found", true)
-                .put("total_playback_records", 0)
-        }
-
-        val latestRecord = records.maxByOrNull { it.timestampMillis ?: 0L } ?: records.last()
-        val uniqueContents = LinkedHashSet<String>()
-        val contentTypes = LinkedHashSet<String>()
-        records.forEach { record ->
-            if (record.content.isNotBlank()) uniqueContents.add(record.content)
-            if (record.contentType.isNotBlank()) contentTypes.add(record.contentType)
-        }
-        val minutesSincePlayback = latestRecord.timestampMillis?.let { (System.currentTimeMillis() - it) / 60_000 }
-        val active = minutesSincePlayback != null && minutesSincePlayback <= 30
-        val status = if (active) "PASS" else "WARNING"
-        val message = if (active) "Playback records are active." else "Playback records exist but last playback is older than 30 minutes."
-
-        return JSONObject()
-            .put("status", status)
-            .put("message", message)
-            .put("audit_file_found", true)
-            .put("total_playback_records", records.size)
-            .put("last_playback_date_time", latestRecord.displayDateTime)
-            .put("minutes_since_last_playback", minutesSincePlayback ?: JSONObject.NULL)
-            .put("last_played_content", latestRecord.content)
-            .put("current_or_last_playlist", latestRecord.playlist)
-            .put("unique_content_count", uniqueContents.size)
-            .put("content_types_played", contentTypes.joinToString(", "))
-            .put("active_playback_threshold_minutes", 30)
-    }
-
-    private fun collectSafLogValidation(root: DocumentFile): JSONObject {
-        val logDir = root.findDirectory("QUAD42LOG") ?: return unknownResult(
-            "Logs",
-            "QUAD42LOG folder is missing from selected LMX folder."
-        )
-            .put("log_folder_found", false)
-
-        val logFiles = collectDocumentFiles(logDir).filter { it.isFile }
-        val crashFiles = logFiles.filter { file ->
-            val name = (file.name ?: "").lowercase(Locale.US)
-            name.contains("crash") || name.contains("exception") || name.contains("fatal")
-        }
-        val latestLog = logFiles.maxOfOrNull { it.lastModified() } ?: 0L
-        val latestCrash = crashFiles.maxOfOrNull { it.lastModified() } ?: 0L
-        val status = when {
-            crashFiles.isNotEmpty() -> "WARNING"
-            logFiles.isNotEmpty() -> "PASS"
-            else -> "WARNING"
-        }
-        val message = when {
-            crashFiles.isNotEmpty() -> "Crash log files were found."
-            logFiles.isNotEmpty() -> "Normal log files were found."
-            else -> "Log folder exists but no log files were found."
-        }
-
-        return JSONObject()
-            .put("status", status)
-            .put("message", message)
-            .put("log_folder_found", true)
-            .put("log_files_found", logFiles.size)
-            .put("crash_log_files_found", crashFiles.size)
-            .put("latest_log_update_timestamp", if (latestLog > 0) formatMillis(latestLog) else "")
-            .put("latest_crash_log_timestamp", if (latestCrash > 0) formatMillis(latestCrash) else "")
-    }
-
-    private fun calculateOverallHealth(
-        lmxAppStatus: JSONObject,
-        contentDownloadStatus: JSONObject,
-        playbackValidation: JSONObject,
-        logValidation: JSONObject
-    ): JSONObject {
-        val lmxInstalled = lmxAppStatus.optBoolean("installed", false)
-        val contentStatus = contentDownloadStatus.optString("status")
-        val mediaPresent = contentStatus == "PASS" || contentStatus == "WARNING"
-        val playbackStatus = playbackValidation.optString("status")
-        val playbackActive = playbackStatus == "PASS"
-        val playbackOld = playbackStatus == "WARNING"
-        val crashFound = logValidation.optInt("crash_log_files_found", 0) > 0
-        val hasUnknown = listOf(lmxAppStatus, contentDownloadStatus, playbackValidation, logValidation)
-            .any { it.optString("status") == "UNKNOWN" }
-
-        val status = when {
-            hasUnknown -> "UNKNOWN"
-            !lmxInstalled || contentStatus == "FAIL" || playbackStatus == "FAIL" -> "RED"
-            playbackActive && crashFound -> "YELLOW"
-            mediaPresent && playbackOld -> "ORANGE"
-            playbackActive && !crashFound -> "GREEN"
-            else -> "RED"
-        }
-        val recommendation = when (status) {
-            "GREEN" -> "LMX Content appears healthy. No immediate action required."
-            "YELLOW" -> "Playback is active, but crash logs were found. Review QUAD42LOG before production deployment."
-            "ORANGE" -> "Media files are present, but playback is old. Confirm scheduling and player runtime state."
-            "RED" -> "Resolve missing LMX app, media files, or playback records before deployment."
-            else -> "Some LMX folders or files could not be accessed. Check Android storage permissions or run on the target media player."
-        }
-
-        return JSONObject()
-            .put("status", status)
-            .put("recommendation", recommendation)
-            .put("lmx_installed", lmxInstalled)
-            .put("media_present", mediaPresent)
-            .put("playback_active", playbackActive)
-            .put("crash_logs_found", crashFound)
-    }
-
-    private data class AuditRecord(
-        val playlist: String,
-        val contentType: String,
-        val content: String,
-        val displayDateTime: String,
-        val timestampMillis: Long?
-    )
-
-    private fun parseAuditRecord(line: String): AuditRecord? {
-        val columns = parseCsvLine(line)
-        if (columns.size < 11) return null
-        val playlist = columns[0].trim()
-        val contentType = columns[3].trim()
-        val content = columns[4].trim()
-        val date = columns[5].trim()
-        val startTime = columns[6].trim()
-        val endTime = columns[7].trim()
-        val displayTime = endTime.ifBlank { startTime }
-        val timestamp = parseAuditTimestamp(date, displayTime)
-        return AuditRecord(
-            playlist = playlist,
-            contentType = contentType,
-            content = content,
-            displayDateTime = listOf(date, displayTime).filter { it.isNotBlank() }.joinToString(" "),
-            timestampMillis = timestamp
-        )
-    }
-
-    private fun parseCsvLine(line: String): List<String> {
-        val values = mutableListOf<String>()
-        val current = StringBuilder()
-        var inQuotes = false
-        var index = 0
-        while (index < line.length) {
-            val char = line[index]
-            when {
-                char == '"' && index + 1 < line.length && line[index + 1] == '"' -> {
-                    current.append('"')
-                    index += 1
-                }
-                char == '"' -> inQuotes = !inQuotes
-                char == ',' && !inQuotes -> {
-                    values.add(current.toString())
-                    current.clear()
-                }
-                else -> current.append(char)
-            }
-            index += 1
-        }
-        values.add(current.toString())
-        return values
-    }
-
-    private fun parseAuditTimestamp(date: String, time: String): Long? {
-        if (date.isBlank()) return null
-        val candidates = listOf(
-            "$date $time" to listOf(
-                "yyyy-MM-dd HH:mm:ss",
-                "yyyy-MM-dd hh:mm:ss a",
-                "dd/MM/yyyy HH:mm:ss",
-                "dd/MM/yyyy hh:mm:ss a",
-                "MM/dd/yyyy HH:mm:ss",
-                "MM/dd/yyyy hh:mm:ss a"
-            ),
-            date to listOf("yyyy-MM-dd", "dd/MM/yyyy", "MM/dd/yyyy")
-        )
-        for ((value, patterns) in candidates) {
-            for (pattern in patterns) {
-                try {
-                    val parser = SimpleDateFormat(pattern, Locale.US)
-                    parser.timeZone = TimeZone.getDefault()
-                    return parser.parse(value)?.time
-                } catch (_: Exception) {
-                }
-            }
-        }
-        return null
-    }
-
-    private fun safeCollectFiles(root: File): List<File>? {
-        return try {
-            val children = root.listFiles() ?: return null
-            val files = mutableListOf<File>()
-            children.forEach { child ->
-                files.add(child)
-                if (child.isDirectory) {
-                    val nested = safeCollectFiles(child)
-                    if (nested != null) files.addAll(nested)
-                }
-            }
-            files
-        } catch (error: Exception) {
-            Log.w(logTag, "Unable to read ${root.absolutePath}", error)
-            null
-        }
-    }
-
-    private fun safeFileLength(file: File): Long {
-        return try {
-            file.length()
-        } catch (_: Exception) {
-            0L
-        }
-    }
-
-    private fun validateSafRoot(root: DocumentFile?): SafValidation {
-        if (root == null || !root.isDirectory) return SafValidation(false, null)
-        if (root.hasExpectedLmxFolders()) return SafValidation(true, root)
-        val filesDir = root.findDirectory("files")
-        if (filesDir != null && filesDir.hasExpectedLmxFolders()) {
-            return SafValidation(true, filesDir)
-        }
-        return SafValidation(false, root)
-    }
-
-    private fun DocumentFile.hasExpectedLmxFolders(): Boolean {
-        return findDirectory("QUAD42MEDIA") != null &&
-            findDirectory("QUAD42AUDIT") != null &&
-            findDirectory("QUAD42LOG") != null
-    }
-
-    private fun DocumentFile.findDirectory(name: String): DocumentFile? {
-        return listFiles().firstOrNull { it.isDirectory && it.name == name }
-    }
-
-    private fun collectDocumentFiles(root: DocumentFile): List<DocumentFile> {
-        val files = mutableListOf<DocumentFile>()
-        root.listFiles().forEach { child ->
-            files.add(child)
-            if (child.isDirectory) {
-                files.addAll(collectDocumentFiles(child))
-            }
-        }
-        return files
-    }
-
-    private fun readDocumentText(file: DocumentFile): String? {
-        return try {
-            contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() }
-        } catch (error: Exception) {
-            Log.w(logTag, "Unable to read SAF document ${file.uri}", error)
-            null
-        }
-    }
-
-    private fun safAccessStatus(): String {
-        val uriText = prefs.getString(selectedTreeUriKey, "") ?: ""
-        if (uriText.isBlank()) return "NOT_SELECTED"
-        val tree = DocumentFile.fromTreeUri(this, Uri.parse(uriText))
-        return if (validateSafRoot(tree).valid) "GRANTED" else "DENIED"
-    }
-
-    private fun selectedFolderDisplayName(root: DocumentFile?, valid: Boolean): String {
-        if (valid) return "Android/data/$lmxPackage/files"
-        return root?.name ?: "Selected folder"
-    }
-
-    private fun unknownResult(module: String, message: String): JSONObject {
-        return JSONObject()
-            .put("status", "UNKNOWN")
-            .put("message", message)
-            .put("module", module)
-    }
-
-    private fun playbackHealthUnavailable(): JSONObject {
-        val reason = "Storage access was not granted. Cannot read LMX media, audit, or log files."
-        return JSONObject()
-            .put("status", "UNKNOWN")
-            .put("reason", reason)
-            .put("message", reason)
-    }
-
-    private fun buildLmxHealthSummary(report: JSONObject): String {
-        val lmx = report.getJSONObject("lmx_app_status")
-        val overall = report.getJSONObject("overall_health")
-        val storageAccessStatus = report.optString("storage_access_status", "UNKNOWN")
-
-        if (storageAccessStatus == "DENIED") {
-            val unavailable = report.optJSONObject("lmx_playback_health_unavailable") ?: playbackHealthUnavailable()
-            return """
-                LMX Playback Health
-
-                Storage Access: DENIED
-
-                LMX App: ${lmx.optString("status")} - ${lmx.optString("message")}
-                Package: ${lmx.optString("package_name")}
-                Version: ${lmx.optString("version_name", "Not detected")}
-
-                LMX Playback Health Unavailable
-                Status: ${unavailable.optString("status", "UNKNOWN")}
-                Message: ${unavailable.optString("reason")}
-
-                Overall Status: UNKNOWN
-                Final Recommendation: ${report.optString("final_recommendation", "Unable to Validate")}
-            """.trimIndent()
-        }
-
-        val content = report.getJSONObject("content_download_status")
-        val playback = report.getJSONObject("playback_validation")
-        val logs = report.getJSONObject("log_validation")
-
-        return """
-            LMX Playback Health
-
-            Storage Access: $storageAccessStatus
-            ${if (storageAccessStatus == "DENIED") "Storage access not granted. Cannot read LMX media, logs, and audit files." else ""}
-
-            LMX App: ${lmx.optString("status")} - ${lmx.optString("message")}
-            Package: ${lmx.optString("package_name")}
-            Version: ${lmx.optString("version_name", "Not detected")}
-
-            Content Download: ${content.optString("status")} - ${content.optString("message")}
-            Files: ${content.optInt("downloaded_file_count", 0)}
-            Size: ${content.optDouble("total_download_size_mb", 0.0)} MB
-            Last Update: ${content.optString("last_content_update_timestamp", "Unknown")}
-
-            Playback: ${playback.optString("status")} - ${playback.optString("message")}
-            Records: ${playback.optInt("total_playback_records", 0)}
-            Last Played: ${playback.optString("last_played_content", "Unknown")}
-            Playlist: ${playback.optString("current_or_last_playlist", "Unknown")}
-            Last Playback: ${playback.optString("last_playback_date_time", "Unknown")}
-
-            Logs: ${logs.optString("status")} - ${logs.optString("message")}
-            Log Files: ${logs.optInt("log_files_found", 0)}
-            Crash Logs: ${logs.optInt("crash_log_files_found", 0)}
-
-            Overall Status: ${overall.optString("status")}
-            Final Recommendation: ${report.optString("final_recommendation", "Unable to Validate")}
-            Recommendation: ${overall.optString("recommendation")}
-        """.trimIndent()
     }
 
     private fun evaluate(report: JSONObject): JSONObject {
         val checks = JSONObject()
-        checks.put("android_version", checkAndroid())
-        checks.put("ram", checkRam(report.getDouble("ram_total_gb")))
-        checks.put("storage", checkStorage(report.getDouble("storage_available_gb")))
-        checks.put("webview", checkWebView(report.optString("webview_version")))
-        checks.put("network", checkBoolean(report.getBoolean("internet_connected"), "Internet connectivity is available.", "Device has no internet connectivity."))
-        checks.put("time_timezone", checkBoolean(report.optString("timezone").isNotBlank(), "System date, time, and timezone are present.", "System date, time, or timezone could not be verified.", "WARNING"))
-        checks.put("lmx_app_installed", checkBoolean(report.getBoolean("lmx_app_installed"), "LMX Content app is installed.", "LMX Content app is not installed."))
-        checks.put("lmx_app_launch", checkBoolean(report.getBoolean("lmx_app_launchable"), "LMX Content app is launchable.", "LMX Content app cannot be launched."))
-        checks.put("programmatic_vast", checkProgrammaticVast(report))
-        checks.put("pull_to_content", checkPullToContent(report.optString("lmx_app_version")))
+            .put("android_version", androidVersionCheck(report))
+            .put("ram", ramCheck(report))
+            .put("storage", storageCheck(report))
+            .put("webview", webViewCheck(report))
+            .put("network", networkCheck(report))
+            .put("time_timezone", timeCheck(report))
+            .put("lmx_app_installed", lmxInstalledCheck(report))
+            .put("lmx_app_launch", lmxLaunchCheck(report))
+            .put("lmx_version", lmxVersionCheck(report))
+            .put("programmatic_vast", programmaticCheck(report))
+            .put("pull_to_content", pullToContentCheck(report))
 
-        var fails = 0
+        var failures = 0
         var warnings = 0
         checks.keys().forEach { key ->
             when (checks.getJSONObject(key).getString("status")) {
-                "FAIL" -> fails += 1
+                "FAIL" -> failures += 1
                 "WARNING" -> warnings += 1
             }
         }
 
+        val score = (100 - failures * 25 - warnings * 10).coerceAtLeast(0)
         val finalStatus = when {
-            fails > 0 -> "Not Recommended"
+            failures > 0 -> "Not Recommended"
             warnings > 0 -> "Approved with Limitation"
             else -> "Approved"
         }
-        val score = maxOf(0, 100 - fails * 25 - warnings * 10)
-        return JSONObject().put("final_status", finalStatus).put("score", score).put("checks", checks)
+
+        return JSONObject()
+            .put("checks", checks)
+            .put("final_status", finalStatus)
+            .put("score", score)
+            .put("summary", summary(finalStatus))
+            .put("recommendations", recommendations(checks))
     }
 
-    private fun checkAndroid(): JSONObject {
+    private fun androidVersionCheck(report: JSONObject): JSONObject {
+        val version = majorVersion(report.optString("os_version"))
         return when {
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.P -> result("FAIL", "Android version is below 9.")
-            Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q -> result("WARNING", "Android 9 to 10 supports limited deployment.")
-            else -> result("PASS", "Android 11 or above is supported.")
+            version < 9 -> check("FAIL", "Android version is below 9.")
+            version <= 10 -> check("WARNING", "Android 9 to 10 supports limited deployment.")
+            else -> check("PASS", "Android 11 or above is supported.")
         }
     }
 
-    private fun checkRam(ramGb: Double): JSONObject {
+    private fun ramCheck(report: JSONObject): JSONObject {
+        val ram = report.optDouble("ram_total_gb", 0.0)
         return when {
-            ramGb < 2 -> result("FAIL", "RAM is below 2GB.")
-            ramGb < 4 -> result("WARNING", "RAM is between 2GB and 4GB.")
-            else -> result("PASS", "RAM is sufficient.")
+            ram < 2.0 -> check("FAIL", "RAM is below 2GB.")
+            ram < 4.0 -> check("WARNING", "RAM is between 2GB and 4GB.")
+            else -> check("PASS", "RAM is sufficient.")
         }
     }
 
-    private fun checkStorage(storageGb: Double): JSONObject {
+    private fun storageCheck(report: JSONObject): JSONObject {
+        val storage = report.optDouble("storage_available_gb", 0.0)
         return when {
-            storageGb < 2 -> result("FAIL", "Available storage is below 2GB.")
-            storageGb < 5 -> result("WARNING", "Available storage is between 2GB and 4.99GB.")
-            else -> result("PASS", "Available storage is 5GB or above.")
+            storage < 2.0 -> check("FAIL", "Available storage is below 2GB.")
+            storage < 5.0 -> check("WARNING", "Available storage is between 2GB and 4.99GB.")
+            else -> check("PASS", "Available storage is 5GB or above.")
         }
     }
 
-    private fun checkWebView(version: String): JSONObject {
-        val major = version.takeWhile { it.isDigit() }.toIntOrNull() ?: 0
+    private fun webViewCheck(report: JSONObject): JSONObject {
+        val version = majorVersion(report.optString("webview_version"))
         return when {
-            major < 100 -> result("FAIL", "Android System WebView is below version 100.")
-            major < 110 -> result("WARNING", "Android System WebView is between version 100 and 109.")
-            else -> result("PASS", "Android System WebView is version 110 or above.")
+            version < 100 -> check("FAIL", "Android System WebView is below version 100.")
+            version < 110 -> check("WARNING", "Android System WebView is between version 100 and 109.")
+            else -> check("PASS", "Android System WebView is version 110 or above.")
         }
     }
 
-    private fun checkProgrammaticVast(report: JSONObject): JSONObject {
-        val webviewMajor = report.optString("webview_version").takeWhile { it.isDigit() }.toIntOrNull() ?: 0
-        val androidReady = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-        val ramReady = report.optDouble("ram_total_gb", 0.0) >= 3.0
-        val networkReady = report.optBoolean("internet_connected", false)
-        val vastPlaybackSuccess = report.optBoolean("vast_playback_success", false) ||
-            report.optBoolean("programmatic_vast_playback_success", false)
-        return when {
-            vastPlaybackSuccess -> result("PASS", "Successful VAST playback validation was detected.")
-            !androidReady || webviewMajor < 100 -> result("FAIL", "Programmatic/VAST readiness requires Android 11+ and WebView 100+.")
-            webviewMajor >= 110 && ramReady && networkReady -> result("PASS", "Programmatic/VAST readiness requirements are met.")
-            webviewMajor in 100..109 -> result("WARNING", "Programmatic/VAST readiness is limited with WebView 100 to 109.")
-            else -> result("WARNING", "Programmatic/VAST readiness has unverified RAM, network, or WebView requirements.")
-        }
-    }
-
-    private fun checkPullToContent(version: String): JSONObject {
-        return if (versionAtLeast(version, "2.9.1.2")) {
-            result("WARNING", "Android LMX version supports Pull To Content, but pairing cannot be verified.")
+    private fun networkCheck(report: JSONObject): JSONObject {
+        return if (report.optBoolean("internet_connected")) {
+            check("PASS", "Internet connectivity is available.")
         } else {
-            result("FAIL", "Android LMX version is below 2.9.1.2 native.")
+            check("FAIL", "Device has no internet connectivity.")
         }
     }
 
-    private fun finalRecommendation(deviceStatus: String, overallHealth: String): String {
+    private fun timeCheck(report: JSONObject): JSONObject {
+        return if (report.optString("system_time").isBlank()) {
+            check("FAIL", "Device time is invalid or missing.")
+        } else if (report.optString("timezone").isBlank()) {
+            check("WARNING", "Timezone could not be verified.")
+        } else {
+            check("PASS", "System date, time, and timezone are present.")
+        }
+    }
+
+    private fun lmxInstalledCheck(report: JSONObject): JSONObject {
+        return if (report.optBoolean("lmx_app_installed")) {
+            check("PASS", "LMX Content app is installed.")
+        } else {
+            check("FAIL", "LMX Content app is not installed.")
+        }
+    }
+
+    private fun lmxLaunchCheck(report: JSONObject): JSONObject {
+        return if (report.optBoolean("lmx_app_launchable")) {
+            check("PASS", "LMX Content app is launchable.")
+        } else {
+            check("FAIL", "LMX Content app cannot be launched.")
+        }
+    }
+
+    private fun lmxVersionCheck(report: JSONObject): JSONObject {
+        val version = report.optString("lmx_app_version")
+        return if (version.isBlank()) {
+            check("FAIL", "LMX Content version could not be detected.")
+        } else {
+            check("PASS", "LMX Content version detected: $version.")
+        }
+    }
+
+    private fun programmaticCheck(report: JSONObject): JSONObject {
+        val android = majorVersion(report.optString("os_version"))
+        val ram = report.optDouble("ram_total_gb", 0.0)
+        val webView = majorVersion(report.optString("webview_version"))
+        val online = report.optBoolean("internet_connected")
         return when {
-            overallHealth == "UNKNOWN" -> "Unable to Validate"
-            deviceStatus == "Approved" && overallHealth == "GREEN" -> "Certified for LMX Content"
-            deviceStatus == "Approved with Limitation" || overallHealth == "YELLOW" -> "Certified with Limitation"
-            deviceStatus == "Not Recommended" || overallHealth == "ORANGE" || overallHealth == "RED" -> "Not Recommended"
-            else -> "Unable to Validate"
+            android < 11 || webView < 100 -> check("FAIL", "Programmatic/VAST readiness requires Android 11+ and WebView 100+.")
+            android >= 11 && webView >= 110 && ram >= 3.0 && online -> check("PASS", "Programmatic/VAST readiness requirements are met.")
+            android >= 11 && webView in 100..109 -> check("WARNING", "Programmatic/VAST readiness is limited with WebView 100 to 109.")
+            else -> check("WARNING", "Programmatic/VAST readiness has unverified RAM, network, or WebView requirements.")
         }
     }
 
-    private fun versionAtLeast(value: String, minimum: String): Boolean {
-        val current = versionParts(value)
-        val required = versionParts(minimum)
-        val maxSize = maxOf(current.size, required.size)
-        val paddedCurrent = current + List(maxSize - current.size) { 0 }
-        val paddedRequired = required + List(maxSize - required.size) { 0 }
-        return paddedCurrent.zip(paddedRequired).firstOrNull { it.first != it.second }?.let {
-            it.first > it.second
-        } ?: true
+    private fun pullToContentCheck(report: JSONObject): JSONObject {
+        val version = report.optString("lmx_app_version")
+        return if (versionAtLeast(version, "2.9.1.2")) {
+            check("PASS", "Android LMX version supports Pull To Content.")
+        } else {
+            check("FAIL", "Android LMX version is below 2.9.1.2 native.")
+        }
     }
 
-    private fun versionParts(value: String): List<Int> {
-        return value.lowercase(Locale.US)
-            .replace("native", "")
-            .trim()
-            .split(".")
-            .map { part -> part.filter { it.isDigit() }.toIntOrNull() ?: 0 }
-    }
-
-    private fun checkBoolean(value: Boolean, pass: String, fail: String, failStatus: String = "FAIL"): JSONObject {
-        return if (value) result("PASS", pass) else result(failStatus, fail)
-    }
-
-    private fun result(status: String, message: String): JSONObject {
+    private fun check(status: String, message: String): JSONObject {
         return JSONObject().put("status", status).put("message", message)
     }
 
-    private fun uploadReport() {
-        if (!this::latestReport.isInitialized) {
-            status.text = "Run diagnostics before uploading."
-            lastUploadStatus = "Upload skipped: no diagnostic report yet"
-            updateDebugInfo()
-            return
-        }
-        status.text = "Uploading..."
-        lastUploadStatus = "Uploading to $backendUrl"
-        lastUploadError = ""
-        updateDebugInfo()
-        Log.i(logTag, "Uploading diagnostic report to $backendUrl")
-        thread {
-            var connection: HttpURLConnection? = null
-            try {
-                val requestBody = latestReport.toString()
-                connection = (URL(backendUrl).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 10_000
-                    readTimeout = 10_000
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Accept", "application/json")
-                    doOutput = true
-                    outputStream.use { stream ->
-                        stream.write(requestBody.toByteArray(Charsets.UTF_8))
-                        stream.flush()
-                    }
-                }
-
-                val code = connection.responseCode
-                val responseBody = readResponseBody(connection, code)
-                Log.i(logTag, "Upload completed with HTTP $code. Response: $responseBody")
-                runOnUiThread {
-                    if (code in 200..299) {
-                        lastUploadStatus = "Upload success: HTTP $code"
-                        lastUploadError = ""
-                    } else {
-                        lastUploadStatus = "Upload failed: HTTP $code"
-                        lastUploadError = responseBody.ifBlank { "Backend returned HTTP $code without an error body." }
-                    }
-                    status.text = lastUploadStatus
-                    updateDebugInfo()
-                }
-            } catch (error: Exception) {
-                Log.e(logTag, "Upload failed for $backendUrl", error)
-                runOnUiThread {
-                    lastUploadStatus = "Upload failed"
-                    lastUploadError = "${error.javaClass.simpleName}: ${error.message ?: "Unknown error"}"
-                    status.text = "Upload failed: $lastUploadError"
-                    updateDebugInfo()
-                }
-            } finally {
-                connection?.disconnect()
-            }
+    private fun summary(finalStatus: String): String {
+        return when (finalStatus) {
+            "Approved" -> "Device meets the current LMX Content compatibility requirements."
+            "Approved with Limitation" -> "Device can run LMX Content with limitations."
+            else -> "Device is not recommended for LMX Content deployment until failed checks are resolved."
         }
     }
 
-    private fun readResponseBody(connection: HttpURLConnection, code: Int): String {
-        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-        return stream?.bufferedReader()?.use { it.readText() } ?: ""
-    }
-
-    private fun showBackendUrl() {
-        val message = "Backend URL: $backendUrl"
-        status.text = message
-        Log.i(logTag, message)
-        updateDebugInfo()
-    }
-
-    private fun openStoragePermissionSettings() {
-        waitingForStoragePermission = true
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val packageUri = Uri.parse("package:$packageName")
-            val appIntent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, packageUri)
-            val fallbackIntent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-            val appDetailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
-            try {
-                startActivity(appIntent)
-            } catch (error: Exception) {
-                Log.w(logTag, "App-specific storage permission screen unavailable.", error)
-                try {
-                    startActivity(fallbackIntent)
-                } catch (fallbackError: Exception) {
-                    Log.w(logTag, "General storage permission screen unavailable.", fallbackError)
-                    try {
-                        startActivity(appDetailsIntent)
-                    } catch (detailsError: Exception) {
-                        waitingForStoragePermission = false
-                        Log.e(logTag, "Unable to open storage permission settings.", detailsError)
-                        status.text = "Unable to open storage permission settings."
-                    }
-                }
+    private fun recommendations(checks: JSONObject): String {
+        val items = mutableListOf<String>()
+        checks.keys().forEach { key ->
+            val item = checks.getJSONObject(key)
+            if (item.optString("status") != "PASS") {
+                items.add(item.optString("message"))
             }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), readStorageRequestCode)
+        }
+        return if (items.isEmpty()) {
+            "No action required before deployment."
         } else {
-            waitingForStoragePermission = false
-            runDiagnostics()
+            items.joinToString(" ") + " Resolve failed checks and review limitations before production deployment."
         }
     }
 
-    private fun openLmxFolderPicker() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-            addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
-        }
-        try {
-            startActivityForResult(intent, selectLmxFolderRequestCode)
-        } catch (error: Exception) {
-            Log.e(logTag, "Unable to open SAF folder picker.", error)
-            status.text = "Unable to open folder picker."
+    private fun finalRecommendation(finalStatus: String): String {
+        return when (finalStatus) {
+            "Approved" -> "Certified for LMX Content"
+            "Approved with Limitation" -> "Certified with Limitation"
+            else -> "Not Recommended"
         }
     }
 
-    private fun clearSelectedLmxFolder() {
-        val uriText = prefs.getString(selectedTreeUriKey, "") ?: ""
-        if (uriText.isNotBlank()) {
-            try {
-                contentResolver.releasePersistableUriPermission(
-                    Uri.parse(uriText),
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (error: Exception) {
-                Log.w(logTag, "Unable to release SAF folder permission.", error)
-            }
-        }
-        prefs.edit()
-            .remove(selectedTreeUriKey)
-            .remove(selectedTreeDisplayNameKey)
-            .apply()
-        status.text = "Selected LMX folder cleared."
-        runDiagnostics()
-    }
+    private fun buildReadinessSummary(report: JSONObject, evaluation: JSONObject): String {
+        val checks = evaluation.getJSONObject("checks")
+        return """
+            Device Compatibility
+            Android Version: ${checks.getJSONObject("android_version").getString("status")}
+            RAM: ${checks.getJSONObject("ram").getString("status")}
+            Storage: ${checks.getJSONObject("storage").getString("status")}
+            WebView: ${checks.getJSONObject("webview").getString("status")}
+            Network: ${checks.getJSONObject("network").getString("status")}
+            Time/Timezone: ${checks.getJSONObject("time_timezone").getString("status")}
 
-    private fun launchLmxContent() {
-        val launchIntent = packageManager.getLaunchIntentForPackage(lmxPackage)
-        if (launchIntent != null) startActivity(launchIntent) else status.text = "LMX Content not launchable"
-    }
-
-    private fun saveReport(report: JSONObject) {
-        val file = File(getExternalFilesDir(null), "lmx_diagnostic_report.json")
-        file.writeText(report.toString(2))
-    }
-
-    private fun getPackageInfo(packageName: String) = try {
-        packageManager.getPackageInfo(packageName, 0)
-    } catch (_: PackageManager.NameNotFoundException) {
-        null
-    }
-
-    private fun packageVersionName(packageInfo: PackageInfo?): String {
-        return packageInfo?.versionName?.toString() ?: ""
-    }
-
-    private fun getWebViewVersion(): String {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WebView.getCurrentWebViewPackage()?.versionName?.toString() ?: ""
-            } else {
-                getPackageInfo("com.google.android.webview")?.versionName?.toString()
-                    ?: getPackageInfo("com.android.webview")?.versionName?.toString()
-                    ?: ""
-            }
-        } catch (_: Exception) {
-            ""
-        }
-    }
-
-    private fun currentIsoTime(): String {
-        val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
-        return formatter.format(Date())
-    }
-
-    private fun updateDebugInfo() {
-        val errorLine = if (lastUploadError.isBlank()) "" else "\nLast upload error: $lastUploadError"
-        debugInfo.text = """
-            Backend URL: $backendUrl
-            LMX package name: $lmxPackage
-            Last diagnostic time: $lastDiagnosticTime
-            Last upload status: $lastUploadStatus$errorLine
+            LMX Content Readiness
+            Package: ${report.optString("lmx_app_package")}
+            Installed: ${yesNo(report.optBoolean("lmx_app_installed"))}
+            Launchable: ${yesNo(report.optBoolean("lmx_app_launchable"))}
+            Version: ${report.optString("lmx_app_version", "Not detected")}
+            LMX Version: ${checks.getJSONObject("lmx_version").getString("status")}
+            Programmatic/VAST Readiness: ${checks.getJSONObject("programmatic_vast").getString("status")}
+            Pull To Content Readiness: ${checks.getJSONObject("pull_to_content").getString("status")}
+            Final Recommendation: ${finalRecommendation(evaluation.getString("final_status"))}
         """.trimIndent()
     }
 
-    private fun logPermissionFlowMarkers() {
-        Log.i(logTag, "Storage permission flow markers: ${permissionFlowMarkers.joinToString(", ")}")
+    private fun uploadReport() {
+        lastUploadStatus = "Uploading..."
+        lastUploadError = ""
+        updateDebugInfo()
+
+        val payload = latestReport.toString()
+        thread {
+            try {
+                Log.i(logTag, "Uploading report to $backendUrl")
+                val connection = (URL(backendUrl).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 10_000
+                    readTimeout = 10_000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json")
+                }
+                connection.outputStream.use { output ->
+                    output.write(payload.toByteArray(Charsets.UTF_8))
+                }
+                val code = connection.responseCode
+                val body = if (code in 200..299) {
+                    connection.inputStream.bufferedReader().use { it.readText() }
+                } else {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                }
+                connection.disconnect()
+                runOnUiThread {
+                    lastUploadStatus = "Upload success: HTTP $code"
+                    lastUploadError = if (code in 200..299) "" else body.take(300)
+                    updateDebugInfo()
+                }
+            } catch (error: Exception) {
+                Log.e(logTag, "Upload failed", error)
+                runOnUiThread {
+                    lastUploadStatus = "Upload failed"
+                    lastUploadError = error.message ?: error.javaClass.simpleName
+                    updateDebugInfo()
+                }
+            }
+        }
+    }
+
+    private fun launchLmxContent() {
+        val intent = packageManager.getLaunchIntentForPackage(lmxPackageName)
+        if (intent == null) {
+            lastUploadStatus = "LMX Content not launchable"
+            updateDebugInfo()
+            return
+        }
+        startActivity(intent)
+    }
+
+    private fun updateDebugInfo() {
+        debugView.text = """
+            Backend URL: $backendUrl
+            LMX package name: $lmxPackageName
+            Last diagnostic time: $lastDiagnosticTime
+            Last upload status: $lastUploadStatus
+            Last upload error: ${if (lastUploadError.isBlank()) "None" else lastUploadError}
+        """.trimIndent()
+    }
+
+    private fun packageInfo(packageName: String): PackageInfo? {
+        return try {
+            packageManager.getPackageInfo(packageName, 0)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun memoryMetrics(): Pair<Double, Double> {
+        val info = ActivityManager.MemoryInfo()
+        (getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
+        return Pair(bytesToGb(info.totalMem), bytesToGb(info.availMem))
+    }
+
+    private fun storageMetrics(): Pair<Double, Double> {
+        val stat = StatFs(Environment.getDataDirectory().path)
+        return Pair(bytesToGb(stat.totalBytes), bytesToGb(stat.availableBytes))
+    }
+
+    private fun screenResolution(): String {
+        val metrics = resources.displayMetrics
+        return "${metrics.widthPixels}x${metrics.heightPixels}"
     }
 
     private fun isOnline(): Boolean {
@@ -1336,30 +454,55 @@ class MainActivity : Activity() {
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
-    private fun permissionStatus(permission: String): String {
-        return if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) "granted" else "denied"
-    }
-
-    private fun hasStorageAccess(): Boolean {
-        return when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> Environment.isExternalStorageManager()
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-                checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-            }
-            else -> true
+    private fun webViewVersion(): String {
+        return try {
+            WebView.getCurrentWebViewPackage()?.versionName ?: ""
+        } catch (error: Exception) {
+            Log.w(logTag, "WebView version unavailable", error)
+            ""
         }
     }
 
-    private fun bytesToGb(bytes: Long): Double {
-        return Math.round((bytes.toDouble() / 1024 / 1024 / 1024) * 10.0) / 10.0
-    }
-
-    private fun bytesToMb(bytes: Long): Double {
-        return Math.round((bytes.toDouble() / 1024 / 1024) * 10.0) / 10.0
-    }
-
-    private fun formatMillis(value: Long): String {
+    private fun currentIsoTime(): String {
         val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
-        return formatter.format(Date(value))
+        formatter.timeZone = TimeZone.getDefault()
+        return formatter.format(Date())
     }
+
+    private fun saveReport(report: JSONObject) {
+        try {
+            File(filesDir, "latest_report.json").writeText(report.toString(2))
+        } catch (error: Exception) {
+            Log.w(logTag, "Could not save local report", error)
+        }
+    }
+
+    private fun majorVersion(value: String): Int {
+        val match = Regex("(\\d+)").find(value)
+        return match?.value?.toIntOrNull() ?: 0
+    }
+
+    private fun versionAtLeast(value: String, minimum: String): Boolean {
+        val current = versionParts(value)
+        val required = versionParts(minimum)
+        val max = maxOf(current.size, required.size)
+        val normalizedCurrent = current + List(max - current.size) { 0 }
+        val normalizedRequired = required + List(max - required.size) { 0 }
+        return normalizedCurrent.zip(normalizedRequired).firstOrNull { it.first != it.second }?.let {
+            it.first > it.second
+        } ?: true
+    }
+
+    private fun versionParts(value: String): List<Int> {
+        return value.lowercase(Locale.US)
+            .replace("native", "")
+            .split(".")
+            .map { part -> part.filter { it.isDigit() }.toIntOrNull() ?: 0 }
+    }
+
+    private fun bytesToGb(value: Long): Double {
+        return String.format(Locale.US, "%.2f", value / 1024.0 / 1024.0 / 1024.0).toDouble()
+    }
+
+    private fun yesNo(value: Boolean): String = if (value) "Yes" else "No"
 }

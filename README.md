@@ -259,17 +259,9 @@ buildConfigField "String", "BACKEND_URL", "\"https://device-certification-platfo
 
 Then rebuild and reinstall the Android APK.
 
-## Android LMX Playback Health
-
-The Android agent also validates LMX Content local health.
-
 ## Certification Framework
 
-The platform separates three outcomes:
-
-- `Device Certification Result`: hardware/software compatibility only.
-- `Overall Health Status`: LMX playback, content, and log health.
-- `Final Recommendation`: deployment decision using both results.
+The platform validates device compatibility and LMX Content readiness.
 
 Device compatibility rules:
 
@@ -280,8 +272,12 @@ Device compatibility rules:
 - Network: PASS when connected, FAIL when offline.
 - Time/Timezone: PASS when detected, WARNING when timezone cannot be verified, FAIL when device time is invalid.
 - LMX App Installed/Launch: PASS when package `com.qruize.quad42.media.app` is detected and launchable, FAIL otherwise.
+- LMX Version: PASS when the LMX version is detected, FAIL when it is missing.
 - Programmatic/VAST: PASS for Android 11+, WebView 110+, RAM 3GB+, and internet, or when actual VAST playback success is reported. WARNING for Android 11+ with WebView 100-109. FAIL below Android 11 or WebView 100.
-- Pull To Content: Android PASS requires LMX `2.9.1.2 native` or above with pairing verified. If the version is supported but pairing cannot be verified, the MVP returns WARNING. Below `2.9.1.2 native` is FAIL.
+- Pull To Content for Android: PASS requires LMX `2.9.1.2 native` or above. Below `2.9.1.2 native` is FAIL.
+- Pull To Content for Windows: PASS requires LMX `1.0.34` or above. Below `1.0.34` is FAIL.
+
+The MVP does not check device pairing, inventory mapping, media playback, CMS connectivity, or another app's local media/log folders.
 
 Device certification result:
 
@@ -291,10 +287,9 @@ Device certification result:
 
 Final recommendation:
 
-- `Certified for LMX Content`: Device Certification is Approved and Overall Health is GREEN.
-- `Certified with Limitation`: Device Certification is Approved with Limitation or Overall Health is YELLOW.
-- `Not Recommended`: Device Certification is Not Recommended, or Overall Health is ORANGE/RED.
-- `Unable to Validate`: Overall Health is UNKNOWN.
+- `Certified for LMX Content`: Device Certification is Approved.
+- `Certified with Limitation`: Device Certification is Approved with Limitation.
+- `Not Recommended`: Device Certification is Not Recommended.
 
 LMX package:
 
@@ -310,66 +305,7 @@ Known local paths:
 /sdcard/Android/data/com.qruize.quad42.media.app/files/QUAD42AUDIT/appender.csv
 ```
 
-The APK report includes:
-
-- `lmx_app_status`
-- `content_download_status`
-- `playback_validation`
-- `log_validation`
-- `overall_health_status`
-- `storage_access_status`
-- `troubleshooting_recommendation`
-
-On Android 11 and above, the agent must be granted All Files Access before it can read LMX media, audit, and log folders. On first run, the APK shows `LMX Playback Health Permission Required` and provides a `Grant All Files Access` button.
-
-Some Android 11-15 devices still block direct access to another app's `Android/data` folder even after All Files Access is granted. The Android Agent includes a SAF folder picker fallback:
-
-1. Tap `Select LMX Folder`.
-2. Select:
-
-```text
-Android/data/com.qruize.quad42.media.app/files
-```
-
-The selected folder must contain:
-
-- `QUAD42MEDIA`
-- `QUAD42AUDIT`
-- `QUAD42LOG`
-
-The app saves the selected folder permission and uses DocumentFile-based reads when direct file access is unavailable. Tap `Clear Selected LMX Folder` to remove the saved SAF folder.
-
-If storage access is denied, the report includes:
-
-```json
-{
-  "storage_access_status": "DENIED"
-}
-```
-
-The file-based modules return `UNKNOWN` instead of `FAIL`, and the dashboard hides those unavailable cards:
-
-- `content_download_status`
-- `playback_validation`
-- `log_validation`
-
-This prevents Android scoped-storage restrictions from being treated as real LMX playback failures. The dashboard shows `LMX Playback Health Unavailable` with Overall Health `UNKNOWN`. After permission is granted or the SAF folder is selected, rerun diagnostics or reopen the app so the agent can read `QUAD42MEDIA`, `QUAD42AUDIT`, and `QUAD42LOG`.
-
-The backend stores these LMX Playback Health sections for report history and exposes them through report detail APIs and the dashboard. A test payload is available at:
-
-```text
-reports/sample_lmx_playback_health_report.json
-```
-
-The dashboard shows LMX Playback Health cards for:
-
-- LMX App Status
-- Content Download Status
-- Playback Validation
-- Log Validation
-- Overall Health Status
-
-Device List also includes latest health columns for Overall Health, Content Download, Playback, and Logs.
+The APK report includes the retained device compatibility fields plus LMX installed, launchable, and version fields. It does not request All Files Access and does not read `QUAD42MEDIA`, `QUAD42AUDIT`, or `QUAD42LOG`.
 
 ## Upload Troubleshooting
 

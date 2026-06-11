@@ -60,11 +60,10 @@ With backend running and a sample report uploaded:
 - Summary cards show total devices, status counts, and last upload time
 - Device List can be searched by device name
 - Device List can be filtered by status and Media Owner / Client
-- Device List shows latest Overall Health, Content Download, Playback, and Logs statuses
 - Device Detail shows PASS/WARNING/FAIL checks
 - `Edit Client` saves Media Owner / Client metadata
 - Report page shows final result, failed checks, limitations, recommendations, and HTML/JSON export links
-- Report page shows LMX Playback Health cards when reports include health fields
+- Report page shows Device Compatibility and LMX Content Readiness checks
 - Diagnostic History shows date, status, score, and summary
 
 With backend unavailable:

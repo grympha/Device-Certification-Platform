@@ -19,10 +19,6 @@ class DeviceOut(BaseModel):
     latest_status: str
     latest_score: int
     last_seen: datetime
-    latest_overall_health_status: str | None = None
-    latest_content_download_status: str | None = None
-    latest_playback_status: str | None = None
-    latest_log_status: str | None = None
 
     @field_serializer("last_seen")
     def serialize_last_seen(self, value: datetime) -> str:
@@ -38,14 +34,6 @@ class ReportOut(BaseModel):
     summary: str
     recommendations: str
     raw_json: dict[str, Any]
-    lmx_app_status: dict[str, Any] | None = None
-    content_download_status: dict[str, Any] | None = None
-    playback_validation: dict[str, Any] | None = None
-    log_validation: dict[str, Any] | None = None
-    overall_health_status: str | None = None
-    overall_health: dict[str, Any] | str | None = None
-    troubleshooting_recommendation: str | None = None
-    device_compatibility: dict[str, Any] | None = None
     final_recommendation: str | None = None
 
     @field_serializer("created_at")

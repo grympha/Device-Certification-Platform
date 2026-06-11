@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.13
+
+- Simplified the platform back to Device Compatibility and LMX Content Readiness.
+- Removed Android storage permission, All Files Access, and SAF folder picker workflows.
+- Removed media folder, playback audit, log validation, and overall playback health fields from active API/dashboard output.
+- Updated Pull To Content readiness rules: Android requires LMX `2.9.1.2 native` or newer; Windows requires LMX `1.0.34` or newer.
+- Updated dashboard, Android Agent, API docs, README, and sample report for the simplified certification workflow.
+
 ## 0.1.0
 
 - Initial MVP scaffold.

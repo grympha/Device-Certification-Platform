@@ -63,6 +63,7 @@ def evaluate_report(report: dict[str, Any]) -> dict[str, Any]:
         _time_check(report),
         _lmx_installed_check(report),
         _lmx_launch_check(report),
+        _lmx_version_check(report),
         _programmatic_check(report),
         _pull_to_content_check(report),
     ]
@@ -81,7 +82,7 @@ def evaluate_report(report: dict[str, Any]) -> dict[str, Any]:
     failed = [check.message for check in checks if check.status == FAIL]
     limitations = [check.message for check in checks if check.status == WARNING]
     recommendations = _recommendations(failed, limitations)
-    final_recommendation = _final_recommendation(final_status, report)
+    final_recommendation = _final_recommendation(final_status)
 
     return {
         "final_status": final_status,
@@ -161,9 +162,16 @@ def _lmx_launch_check(report: dict[str, Any]) -> CheckResult:
     return CheckResult("lmx_app_launch", PASS, "LMX Content app is launchable.")
 
 
+def _lmx_version_check(report: dict[str, Any]) -> CheckResult:
+    version = report.get("lmx_app_version") or report.get("lmx_version")
+    if not version:
+        return CheckResult("lmx_version", FAIL, "LMX Content version could not be detected.")
+    return CheckResult("lmx_version", PASS, f"LMX Content version detected: {version}.")
+
+
 def _programmatic_check(report: dict[str, Any]) -> CheckResult:
     if report.get("vast_playback_success") or report.get("programmatic_vast_playback_success"):
-        return CheckResult("programmatic_vast", PASS, "Successful VAST playback validation was detected.")
+        return CheckResult("programmatic_vast", PASS, "Successful VAST readiness signal was detected.")
     android = _major_version(report.get("os_version"))
     ram = _float_value(report, "ram_total_gb")
     webview = _major_version(report.get("webview_version"))
@@ -185,9 +193,7 @@ def _pull_to_content_check(report: dict[str, Any]) -> CheckResult:
             return CheckResult("pull_to_content", PASS, "Windows LMX version supports Pull To Content.")
         return CheckResult("pull_to_content", FAIL, "Windows LMX version is below 1.0.34.")
     if _version_at_least(version, "2.9.1.2"):
-        if report.get("pairing_verified") is True:
-            return CheckResult("pull_to_content", PASS, "Android LMX version and pairing support Pull To Content.")
-        return CheckResult("pull_to_content", WARNING, "Android LMX version supports Pull To Content, but pairing cannot be verified.")
+        return CheckResult("pull_to_content", PASS, "Android LMX version supports Pull To Content.")
     return CheckResult("pull_to_content", FAIL, "Android LMX version is below 2.9.1.2 native.")
 
 
@@ -206,16 +212,11 @@ def _recommendations(failed: list[str], limitations: list[str]) -> str:
     return " ".join(items) + " Resolve failed checks and review limitations before production deployment."
 
 
-def _final_recommendation(device_status: str, report: dict[str, Any]) -> str:
-    overall_health = str(report.get("overall_health_status") or "UNKNOWN").upper()
-    if overall_health == "UNKNOWN" and isinstance(report.get("overall_health"), dict):
-        overall_health = str(report["overall_health"].get("status") or "UNKNOWN").upper()
-    if overall_health == "UNKNOWN":
-        return "Unable to Validate"
-    if device_status == "Approved" and overall_health == "GREEN":
+def _final_recommendation(device_status: str) -> str:
+    if device_status == "Approved":
         return "Certified for LMX Content"
-    if device_status == "Approved with Limitation" or overall_health == "YELLOW":
+    if device_status == "Approved with Limitation":
         return "Certified with Limitation"
-    if device_status == "Not Recommended" or overall_health in {"ORANGE", "RED"}:
+    if device_status == "Not Recommended":
         return "Not Recommended"
-    return "Unable to Validate"
+    return "Not Recommended"

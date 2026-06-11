@@ -2,37 +2,36 @@
 
 ## POST /api/reports
 
-Receives one diagnostic report JSON payload from Android Agent or Windows Agent.
+Receives one diagnostic report JSON payload from the Android Agent or future Windows Agent.
 
-LMX Playback Health fields are optional and backwards compatible. New Android Agent reports may include:
+Required and commonly used fields:
 
 ```json
 {
-  "lmx_app_status": {},
-  "content_download_status": {},
-  "playback_validation": {},
-  "log_validation": {},
-  "overall_health_status": "YELLOW",
-  "overall_health": {
-    "status": "YELLOW",
-    "recommendation": "Playback active but crash logs found"
-  },
-  "storage_access_status": "GRANTED",
-  "final_recommendation": "Certified with Limitation",
-  "troubleshooting_recommendation": "Review crash logs.",
-  "device_compatibility": {}
+  "device_name": "Solum Box",
+  "platform": "Android",
+  "manufacturer": "Solum",
+  "model": "Box",
+  "os_version": "15",
+  "ram_total_gb": 4,
+  "storage_available_gb": 8,
+  "webview_version": "120.0.0.0",
+  "internet_connected": true,
+  "system_time": "2026-06-10T00:02:20Z",
+  "timezone": "Asia/Kuala_Lumpur",
+  "lmx_app_package": "com.qruize.quad42.media.app",
+  "lmx_app_installed": true,
+  "lmx_app_launchable": true,
+  "lmx_app_version": "2.9.3.6 native"
 }
 ```
 
-Missing health fields are returned as `null` or `UNKNOWN`. If storage access is denied by Android, file-based health sections should not be treated as certification failures. The dashboard displays `LMX Playback Health Unavailable`, Overall Health `UNKNOWN`, and Final Recommendation `Unable to Validate`.
+The backend evaluates:
+
+- Device Compatibility: Android Version, RAM, Storage, WebView, Network, Time/Timezone.
+- LMX Content Readiness: LMX App Installed, LMX App Launch, LMX Version, Programmatic/VAST Readiness, Pull To Content Readiness.
 
 ## Certification Outcomes
-
-The API separates:
-
-- `final_status`: Device Certification Result.
-- `overall_health_status`: LMX Playback Health result.
-- `final_recommendation`: deployment recommendation.
 
 Device Certification Result values:
 
@@ -45,22 +44,21 @@ Final Recommendation values:
 - `Certified for LMX Content`
 - `Certified with Limitation`
 - `Not Recommended`
-- `Unable to Validate`
+
+Pull To Content Readiness:
+
+- Android: `PASS` when LMX Version is `2.9.1.2 native` or newer, otherwise `FAIL`.
+- Windows: `PASS` when LMX Version is `1.0.34` or newer, otherwise `FAIL`.
+
+The platform does not check device pairing, inventory mapping, playback, CMS connectivity, or another app's local media/log folders.
 
 ## GET /api/devices
 
-Lists all tested devices with latest status and score.
-
-Device list responses include the latest health status summary when available:
-
-- `latest_overall_health_status`
-- `latest_content_download_status`
-- `latest_playback_status`
-- `latest_log_status`
+Lists all tested devices with latest certification status, score, and last check time.
 
 ## GET /api/devices/{id}
 
-Shows full diagnostic history for one device.
+Shows one device plus its diagnostic report history.
 
 ## PATCH /api/devices/{id}
 
@@ -74,42 +72,11 @@ Request body:
 }
 ```
 
-Response:
-
-```json
-{
-  "id": 1,
-  "device_name": "Solum Box",
-  "platform": "Android",
-  "manufacturer": "Solum",
-  "model": "Box",
-  "media_owner": "Client Name",
-  "os_version": "15",
-  "webview_version": "120.0.0.0",
-  "lmx_app_version": "1.0.0",
-  "latest_status": "Approved",
-  "latest_score": 100,
-  "last_seen": "2026-06-10T00:00:00"
-}
-```
-
 Diagnostic uploads may also include either `media_owner` or `client_name`. If both are present, `media_owner` is used. If neither is present, the dashboard shows `Unassigned`.
 
 ## GET /api/reports/{id}
 
-Shows one full diagnostic report.
-
-Report detail responses include persisted health sections:
-
-- `lmx_app_status`
-- `content_download_status`
-- `playback_validation`
-- `log_validation`
-- `overall_health_status`
-- `overall_health`
-- `troubleshooting_recommendation`
-- `device_compatibility`
-- `final_recommendation`
+Shows one full diagnostic report with checks, failed checks, limitations, score, status, and final recommendation.
 
 ## GET /api/export/{id}
 
@@ -128,16 +95,4 @@ Start the backend at `http://127.0.0.1:8000`, then run:
 python scripts/smoke_test_v1.py
 ```
 
-The script uploads `reports/sample_android_report.json` and validates the core V1 API flow.
-
-LMX Playback Health sample payload:
-
-```text
-reports/sample_lmx_playback_health_report.json
-```
-
-Optional custom API URL:
-
-```powershell
-$env:LMX_API_BASE_URL="http://127.0.0.1:8010"; python scripts/smoke_test_v1.py
-```
+The script uploads `reports/sample_android_report.json` and validates the core API flow.
