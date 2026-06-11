@@ -200,8 +200,9 @@ input {
 }
 
 .split-grid .section-card {
+  width: 100%;
   height: 100%;
-  margin-top: 0;
+  margin: 0;
 }
 
 .split-grid-halves {
