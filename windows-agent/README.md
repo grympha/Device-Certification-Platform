@@ -1,13 +1,13 @@
 # LMX Windows Certification
 
-Standalone Windows certification app for Windows 10 and Windows 11 devices.
+Standalone lightweight Windows certification utility for Windows 10 and Windows 11 devices.
 
 End-user flow:
 
 1. Download `LMX-Windows-Certification.exe`.
 2. Open the app.
 3. Click `Run Certification`.
-4. Review the result.
+4. Review the small result summary.
 5. Click `Upload Report`.
 6. Refresh the web dashboard.
 
@@ -45,8 +45,9 @@ LMX-Windows-Certification.exe
 Then:
 
 1. Click `Run Certification`.
-2. Confirm the summary, device information, compatibility checks, deployment readiness, and report summary.
+2. Confirm the small summary.
 3. Click `Upload Report`.
+4. Review full details in the web dashboard.
 
 Default backend URL:
 
@@ -67,6 +68,17 @@ $env:LMX_BACKEND_URL="http://127.0.0.1:8000/api/reports"
 python windows_certification_ui.py
 ```
 
+## LMX Content Detection
+
+The app checks:
+
+```text
+C:\Program Files\mac-media-player\MW Content.exe
+C:\Program Files\mac-media-player\mac-media-player.exe
+```
+
+If either executable exists, LMX Content detection passes. The app reads Windows file version information from the detected executable. If the version cannot be read, the report marks LMX Version as `WARNING` with `Version Unknown`.
+
 ## Local Report File
 
 After `Run Certification`, the app saves:
@@ -74,8 +86,6 @@ After `Run Certification`, the app saves:
 ```text
 windows_certification_report.json
 ```
-
-It first tries the same folder as the EXE. If that folder is not writable, it saves to:
 
 ```text
 %USERPROFILE%\Documents\LMX-Windows-Certification\windows_certification_report.json
@@ -95,3 +105,4 @@ python windows_certification_agent.py --upload --backend-url https://device-cert
 - If LMX Content is not installed, the app shows `LMX Content is not installed` and still generates a report.
 - If upload fails, the app displays the real error message instead of crashing.
 - If some system data cannot be collected, the app returns `WARNING`, `UNKNOWN`, or a failed check instead of crashing.
+- The Windows app intentionally stays small. PDF, DOCX, detailed report review, and deployment decisions are handled in the web dashboard.

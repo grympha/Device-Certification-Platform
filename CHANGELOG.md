@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+- Simplified `LMX Windows Certification` into a compact Tkinter utility with Run Certification, Upload Report, and Exit only.
+- Reduced Windows EXE dependencies by removing CustomTkinter, requests, and psutil from the app build.
+- Updated Windows LMX detection to `C:\Program Files\mac-media-player` with `MW Content.exe` or `mac-media-player.exe`.
+- Updated Windows LMX version detection to read executable file version information and report `Version Unknown` as a warning.
+- Removed the Windows app's detailed local dashboard sections so the web dashboard remains the main review surface.
+
 ## 0.2.0
 
 - Added Phase 2 Windows Device Certification support for Windows 10 and Windows 11.

@@ -57,7 +57,7 @@ Windows payload example:
 }
 ```
 
-Windows reports may include non-scoring `deployment_readiness` values for Auto Login, Auto Startup, Power Settings, Display Scaling, Wake Timers, and Windows Update Status.
+Windows reports focus on scored certification checks. The lightweight Windows app does not send deployment-readiness sections.
 
 ## Certification Outcomes
 

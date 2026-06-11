@@ -388,7 +388,7 @@ def _lmx_version_check(report: dict[str, Any]) -> CheckResult:
 def _windows_lmx_version_check(report: dict[str, Any]) -> CheckResult:
     version = report.get("lmx_app_version") or report.get("lmx_version")
     if not version:
-        return CheckResult("lmx_version", FAIL, "LMX Content version could not be detected.")
+        return CheckResult("lmx_version", WARNING, "Version Unknown")
     if _version_at_least(version, "1.0.34"):
         return CheckResult("lmx_version", PASS, f"Windows LMX Content version {version} is supported.")
     return CheckResult("lmx_version", WARNING, f"Windows LMX Content version {version} is below the recommended 1.0.34.")

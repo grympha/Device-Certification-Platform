@@ -31,6 +31,19 @@ Upload to Render:
 python windows_certification_agent.py --upload --backend-url https://device-certification-platform.onrender.com/api/reports
 ```
 
+Or use the lightweight desktop app:
+
+```text
+windows-agent\dist\LMX-Windows-Certification.exe
+```
+
+User flow:
+
+1. Open the EXE.
+2. Click `Run Certification`.
+3. Click `Upload Report`.
+4. Review the full report in the web dashboard.
+
 ## Scored Checks
 
 | Check | Weight |
@@ -57,25 +70,19 @@ Total score: `100`
 
 ## LMX Version Rule
 
+The Windows app checks for LMX Content in:
+
+```text
+C:\Program Files\mac-media-player\MW Content.exe
+C:\Program Files\mac-media-player\mac-media-player.exe
+```
+
+If either executable exists, LMX Installed is `PASS`. If the executable version cannot be read from Windows file version information, LMX Version is `WARNING` with `Version Unknown`.
+
 Windows Pull To Content readiness:
 
 - `PASS`: LMX Content version `1.0.34` or newer.
 - `FAIL`: LMX Content version below `1.0.34`.
-
-## Deployment Readiness
-
-Deployment Readiness is displayed separately and does not affect the score yet.
-
-Checks:
-
-- Auto Login
-- Auto Startup
-- Power Settings
-- Display Scaling
-- Wake Timers
-- Windows Update Status
-
-Some fields may return `WARNING` when Windows cannot verify the setting safely without administrator access.
 
 ## Sample Payload
 
@@ -91,4 +98,4 @@ Post it to:
 POST /api/reports
 ```
 
-The dashboard will show a `WINDOWS` platform badge, Windows-specific device information, Windows checks, deployment readiness, and PDF/DOCX exports.
+The dashboard will show a `WINDOWS` platform badge, Windows-specific device information, Windows checks, and PDF/DOCX exports.

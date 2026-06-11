@@ -32,10 +32,9 @@ WINDOWS_SCORE_WEIGHTS = {
     "pull_to_content": 5,
 }
 LMX_CANDIDATE_PATHS = [
-    Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "LMX Content",
-    Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "LMX Content",
-    Path(r"C:\LMX Content"),
+    Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "mac-media-player",
 ]
+LMX_EXECUTABLE_NAMES = ("MW Content.exe", "mac-media-player.exe")
 
 
 def main() -> int:
@@ -79,8 +78,8 @@ def collect_report() -> dict[str, Any]:
         "Height=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height}"
     )
 
-    lmx_path = _find_lmx_path()
-    lmx_version = _detect_lmx_version(lmx_path)
+    lmx_executable = _find_lmx_executable()
+    lmx_version = _detect_lmx_version(lmx_executable)
     online = _internet_available()
 
     report = {
@@ -106,11 +105,11 @@ def collect_report() -> dict[str, Any]:
         "timezone": datetime.now().astimezone().tzname(),
         "system_time": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
         "internet_connected": online,
-        "lmx_app_installed": lmx_path is not None,
-        "lmx_app_path": str(lmx_path) if lmx_path else "",
+        "lmx_app_installed": lmx_executable is not None,
+        "lmx_app_path": str(lmx_executable.parent) if lmx_executable else "",
+        "lmx_app_executable": str(lmx_executable) if lmx_executable else "",
         "lmx_app_version": lmx_version,
-        "lmx_app_launchable": lmx_path is not None,
-        "deployment_readiness": collect_deployment_readiness(),
+        "lmx_app_launchable": lmx_executable is not None,
     }
     return enrich_report(report)
 
@@ -129,7 +128,6 @@ def enrich_report(report: dict[str, Any]) -> dict[str, Any]:
         "failed_checks": evaluation["failed_checks"],
         "limitations": evaluation["limitations"],
         "device_report_summary": evaluation["device_report_summary"],
-        "deployment_readiness": evaluation["deployment_readiness"],
     })
     return report
 
@@ -177,7 +175,6 @@ def evaluate_windows_report(report: dict[str, Any]) -> dict[str, Any]:
             "likely_causes": _likely_causes(checks),
             "recommended_actions": recommendations,
         },
-        "deployment_readiness": _normalize_deployment_readiness(report.get("deployment_readiness")),
     }
 
 
@@ -261,17 +258,6 @@ def _likely_causes(checks: dict[str, dict[str, str]]) -> list[str]:
         if check["status"] in {WARNING, FAIL} and key in causes
     ]
     return list(dict.fromkeys(items)) or ["No likely causes identified from the current assessment."]
-
-
-def collect_deployment_readiness() -> dict[str, str]:
-    return {
-        "auto_login": "WARNING",
-        "auto_startup": _startup_status(),
-        "power_settings": _sleep_status(),
-        "display_scaling": _display_scaling(),
-        "wake_timers": "WARNING",
-        "windows_update_status": "WARNING",
-    }
 
 
 def _check(status: str, message: str) -> dict[str, str]:
@@ -368,7 +354,7 @@ def _lmx_installed_check(report: dict[str, Any]) -> dict[str, str]:
 def _windows_lmx_version_check(report: dict[str, Any]) -> dict[str, str]:
     version = report.get("lmx_app_version") or report.get("lmx_version")
     if not version:
-        return _check(FAIL, "LMX Content version could not be detected.")
+        return _check(WARNING, "Version Unknown")
     if _version_at_least(version, "1.0.34"):
         return _check(PASS, f"Windows LMX Content version {version} is supported.")
     return _check(WARNING, f"Windows LMX Content version {version} is below 1.0.34.")
@@ -385,45 +371,6 @@ def _pull_to_content_check(report: dict[str, Any]) -> dict[str, str]:
     if _version_at_least(version, "1.0.34"):
         return _check(PASS, "Windows LMX version supports Pull To Content.")
     return _check(FAIL, "Windows LMX version is below 1.0.34.")
-
-
-def _normalize_deployment_readiness(value: Any) -> dict[str, dict[str, str]]:
-    readiness = value if isinstance(value, dict) else {}
-    return {
-        "auto_login": _readiness_check(readiness.get("auto_login"), "Windows Auto Login"),
-        "auto_startup": _readiness_check(readiness.get("auto_startup"), "LMX startup on boot"),
-        "power_settings": _readiness_check(readiness.get("power_settings"), "Sleep disabled"),
-        "display_scaling": _display_scaling_check(readiness.get("display_scaling")),
-        "wake_timers": _readiness_check(readiness.get("wake_timers"), "Wake timers enabled"),
-        "windows_update_status": _windows_update_check(readiness.get("windows_update_status")),
-    }
-
-
-def _readiness_check(value: Any, label: str) -> dict[str, str]:
-    text = str(value or "").strip().upper()
-    if text == PASS:
-        return _check(PASS, f"{label} verified.")
-    if text == FAIL:
-        return _check(FAIL, f"{label} is not enabled.")
-    return _check(WARNING, f"{label} could not be verified.")
-
-
-def _display_scaling_check(value: Any) -> dict[str, str]:
-    text = str(value or "").strip().replace("%", "")
-    if text == "100":
-        return _check(PASS, "Display scaling is 100%.")
-    if text:
-        return _check(WARNING, f"Display scaling is {text}%.")
-    return _check(WARNING, "Display scaling could not be verified.")
-
-
-def _windows_update_check(value: Any) -> dict[str, str]:
-    text = str(value or "").strip().upper()
-    if text == PASS:
-        return _check(PASS, "Windows Update status is fully updated.")
-    if text == FAIL:
-        return _check(WARNING, "Windows updates may be available.")
-    return _check(WARNING, "Windows Update status could not be verified.")
 
 
 def upload_report(url: str, report: dict[str, Any]) -> tuple[int, str]:
@@ -501,56 +448,37 @@ def _internet_available() -> bool:
         return False
 
 
-def _find_lmx_path() -> Path | None:
-    for path in LMX_CANDIDATE_PATHS:
-        if path.exists():
-            return path
+def _find_lmx_executable() -> Path | None:
+    for folder in LMX_CANDIDATE_PATHS:
+        for name in LMX_EXECUTABLE_NAMES:
+            executable = folder / name
+            if executable.exists():
+                return executable
     return None
 
 
-def _detect_lmx_version(path: Path | None) -> str:
-    if not path:
+def _detect_lmx_version(executable: Path | None) -> str:
+    if not executable:
         return ""
-    version_files = list(path.glob("**/version*.*"))
-    for version_file in version_files[:3]:
-        try:
-            text = version_file.read_text(encoding="utf-8", errors="ignore").strip()
-        except OSError:
-            continue
-        if text:
-            return text.splitlines()[0][:80]
-    exe_files = list(path.glob("*.exe"))
-    return exe_files[0].stem if exe_files else ""
-
-
-def _startup_status() -> str:
-    startup = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
-    if startup.exists() and any("lmx" in item.name.lower() for item in startup.iterdir()):
-        return "PASS"
-    return "WARNING"
-
-
-def _sleep_status() -> str:
+    escaped = str(executable).replace("'", "''")
     try:
-        result = subprocess.run(["powercfg", "/a"], capture_output=True, text=True, timeout=10, check=False)
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                f"(Get-Item -LiteralPath '{escaped}').VersionInfo.FileVersion",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
     except Exception:
-        return "WARNING"
-    text = result.stdout.lower()
-    if "standby" in text and "not available" not in text:
-        return "FAIL"
-    return "PASS"
-
-
-def _display_scaling() -> str:
-    value = _powershell_json(
-        "Get-ItemProperty -Path 'HKCU:\\Control Panel\\Desktop\\WindowMetrics' | "
-        "Select-Object AppliedDPI"
-    ).get("AppliedDPI")
-    try:
-        dpi = int(value)
-    except (TypeError, ValueError):
         return ""
-    return f"{round(dpi / 96 * 100)}%"
+    return result.stdout.strip()
 
 
 if __name__ == "__main__":

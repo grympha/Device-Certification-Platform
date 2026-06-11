@@ -5,7 +5,7 @@ Free/open-source MVP for checking whether Android and Windows devices are health
 ## Stack
 
 - Android Agent: Kotlin
-- Windows Agent: PowerShell
+- Windows Agent: Python lightweight desktop utility
 - Backend API: Python FastAPI
 - Database: SQLite locally, PostgreSQL in production
 - Dashboard: React with Vite
@@ -208,7 +208,7 @@ $env:LMX_API_BASE_URL="http://127.0.0.1:8010"; python scripts/smoke_test_v1.py
 
 ## Windows Device Certification
 
-Phase 2 supports Windows 10 and Windows 11 certification through `windows-agent/windows_certification_agent.py`.
+Phase 2 supports Windows 10 and Windows 11 certification through a lightweight Windows desktop utility and the CLI agent in `windows-agent/windows_certification_agent.py`.
 
 Generate a local Windows report:
 
@@ -229,9 +229,9 @@ Upload to the Render backend:
 python windows_certification_agent.py --upload --backend-url https://device-certification-platform.onrender.com/api/reports
 ```
 
-Windows reports use the same `POST /api/reports` endpoint, dashboard, PDF export, and DOCX export as Android reports. The dashboard shows a `WINDOWS` platform badge, Windows-specific fields, Windows scoring checks, and non-scoring Deployment Readiness.
+Windows reports use the same `POST /api/reports` endpoint, dashboard, PDF export, and DOCX export as Android reports. The dashboard shows a `WINDOWS` platform badge, Windows-specific fields, and Windows scoring checks.
 
-The Windows desktop app can be run from source:
+The Windows desktop app is intentionally small: users run certification, upload the report, then review full details in the web dashboard. It can be run from source:
 
 ```powershell
 cd windows-agent
@@ -251,6 +251,14 @@ The EXE is generated at:
 ```text
 windows-agent\dist\LMX-Windows-Certification.exe
 ```
+
+The Windows app detects LMX Content in:
+
+```text
+C:\Program Files\mac-media-player
+```
+
+It passes LMX installation when either `MW Content.exe` or `mac-media-player.exe` exists, and reads the executable file version for LMX version validation.
 - Render deployment guide: `docs/RENDER_DEPLOYMENT.md`
 - Deployment checklist: `docs/DEPLOYMENT_CHECKLIST.md`
 - Neon PostgreSQL setup: `docs/NEON_POSTGRES_SETUP.md`
@@ -436,7 +444,7 @@ The APK report includes the retained device compatibility fields plus LMX instal
 - Dashboard can show bundled sample data if the backend is not running.
 - Android devices cannot reach a laptop backend through `127.0.0.1`; use the laptop LAN IP or deployed API URL in `BACKEND_URL`.
 - The V1 Android agent allows cleartext HTTP for local LAN testing. Use HTTPS for production.
-- The Windows Agent is intentionally a Phase 2 placeholder.
+- The Windows Agent is a lightweight utility. Detailed review and PDF/DOCX exports stay in the web dashboard.
 - Physical Android testing is required before treating APK diagnostics as production-ready.
 
 ## Render Free Tier
