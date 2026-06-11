@@ -89,6 +89,7 @@ def create_report(payload: dict[str, Any], db: Session = Depends(get_db)) -> dic
     raw_with_checks["media_owner"] = device.media_owner
     raw_with_checks["final_recommendation"] = evaluation["final_recommendation"]
     raw_with_checks["device_report_summary"] = evaluation["device_report_summary"]
+    raw_with_checks["score_label"] = evaluation["score_label"]
 
     report = DiagnosticReport(
         device=device,
@@ -263,6 +264,7 @@ def _export_context(report: DiagnosticReport) -> dict[str, Any]:
         "final_status": report.final_status,
         "final_recommendation": report.final_recommendation or raw.get("final_recommendation") or "Not Recommended",
         "score": report.score,
+        "score_label": raw.get("score_label") or _score_label(report.score),
         "summary": report.summary,
         "recommendations": report.recommendations,
         "device_report_summary": _device_report_summary(report, raw),
@@ -273,6 +275,16 @@ def _format_export_date(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _score_label(score: int) -> str:
+    if score >= 95:
+        return "Excellent"
+    if score >= 80:
+        return "Good"
+    if score >= 60:
+        return "Limited"
+    return "Not Recommended"
 
 
 def _html_report(report: DiagnosticReport) -> str:

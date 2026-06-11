@@ -9,6 +9,19 @@ PASS = "PASS"
 WARNING = "WARNING"
 FAIL = "FAIL"
 
+SCORE_WEIGHTS = {
+    "android_version": 15,
+    "ram": 15,
+    "storage": 10,
+    "webview": 15,
+    "network": 10,
+    "time_timezone": 5,
+    "lmx_app_installed": 10,
+    "lmx_app_launch": 10,
+    "programmatic_vast": 5,
+    "pull_to_content": 5,
+}
+
 
 @dataclass
 class CheckResult:
@@ -70,7 +83,7 @@ def evaluate_report(report: dict[str, Any]) -> dict[str, Any]:
 
     fail_count = sum(1 for check in checks if check.status == FAIL)
     warning_count = sum(1 for check in checks if check.status == WARNING)
-    score = max(0, 100 - fail_count * 25 - warning_count * 10)
+    score = _certification_score(checks)
 
     if fail_count:
         final_status = "Not Recommended"
@@ -89,6 +102,7 @@ def evaluate_report(report: dict[str, Any]) -> dict[str, Any]:
     return {
         "final_status": final_status,
         "score": score,
+        "score_label": _score_label(score),
         "summary": _summary(final_status, failed, limitations),
         "recommendations": recommendations,
         "final_recommendation": final_recommendation,
@@ -97,6 +111,27 @@ def evaluate_report(report: dict[str, Any]) -> dict[str, Any]:
         "limitations": limitations,
         "device_report_summary": device_report_summary,
     }
+
+
+def _certification_score(checks: list[CheckResult]) -> int:
+    score = 0.0
+    for check in checks:
+        weight = SCORE_WEIGHTS.get(check.name, 0)
+        if check.status == PASS:
+            score += weight
+        elif check.status == WARNING:
+            score += weight * 0.5
+    return int(round(score))
+
+
+def _score_label(score: int) -> str:
+    if score >= 95:
+        return "Excellent"
+    if score >= 80:
+        return "Good"
+    if score >= 60:
+        return "Limited"
+    return "Not Recommended"
 
 
 def build_device_report_summary(

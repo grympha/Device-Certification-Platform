@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Download, FileText, LayoutDashboard, RefreshCw, Save, Search, UserPen } from "lucide-react";
+import { Download, FileText, Printer, RefreshCw, Save, UserPen } from "lucide-react";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -11,7 +11,7 @@ const sampleReport = {
   device_id: 1,
   created_at: "2026-06-09T13:00:00Z",
   final_status: "Not Recommended",
-  score: 50,
+  score: 75,
   final_recommendation: "Not Recommended",
   device_report_summary: {
     overall_summary: "Device is not recommended for LMX Content deployment until failed checks are resolved.",
@@ -19,6 +19,7 @@ const sampleReport = {
       "Android 11 or above is supported.",
       "RAM is sufficient.",
       "Internet connectivity is available.",
+      "System date, time, and timezone are present.",
       "LMX Content app is installed.",
       "LMX Content app is launchable."
     ],
@@ -51,6 +52,8 @@ const sampleReport = {
     model: "Box",
     media_owner: "",
     os_version: "15",
+    cpu_architecture: "arm64-v8a",
+    screen_resolution: "1920x1080",
     webview_version: "106.0.5249.126",
     lmx_app_package: "com.qruize.quad42.media.app",
     lmx_app_version: "1.4.2",
@@ -61,6 +64,7 @@ const sampleReport = {
     internet_connected: true,
     timezone: "Asia/Kuala_Lumpur",
     final_recommendation: "Not Recommended",
+    score_label: "Limited",
     checks: {
       android_version: { status: "PASS", message: "Android 11 or above is supported." },
       ram: { status: "PASS", message: "RAM is sufficient." },
@@ -88,7 +92,7 @@ const sampleDevice = {
   webview_version: "106.0.5249.126",
   lmx_app_version: "1.4.2",
   latest_status: "Not Recommended",
-  latest_score: 50,
+  latest_score: 75,
   last_seen: "2026-06-09T13:00:00Z",
   reports: [sampleReport]
 };
@@ -99,9 +103,6 @@ function App() {
   const [deviceDetail, setDeviceDetail] = useState(sampleDevice);
   const [report, setReport] = useState(sampleReport);
   const [apiOnline, setApiOnline] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [ownerFilter, setOwnerFilter] = useState("All");
   const [editingOwner, setEditingOwner] = useState(false);
   const [ownerDraft, setOwnerDraft] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
@@ -110,38 +111,6 @@ function App() {
     () => devices.find((device) => device.id === selectedDeviceId) || devices[0],
     [devices, selectedDeviceId]
   );
-
-  const filteredDevices = useMemo(() => {
-    const search = searchTerm.trim().toLowerCase();
-    return devices.filter((device) => {
-      const owner = displayOwner(device).toLowerCase();
-      const nameMatch = !search || device.device_name.toLowerCase().includes(search);
-      const statusMatch = statusFilter === "All" || device.latest_status === statusFilter;
-      const ownerMatch = ownerFilter === "All" || owner === ownerFilter.toLowerCase();
-      return nameMatch && statusMatch && ownerMatch;
-    });
-  }, [devices, ownerFilter, searchTerm, statusFilter]);
-
-  const ownerOptions = useMemo(() => {
-    return Array.from(new Set(devices.map(displayOwner))).sort((a, b) => a.localeCompare(b));
-  }, [devices]);
-
-  const summary = useMemo(() => {
-    const approved = devices.filter((device) => device.latest_status === "Approved").length;
-    const limited = devices.filter((device) => device.latest_status === "Approved with Limitation").length;
-    const notRecommended = devices.filter((device) => device.latest_status === "Not Recommended").length;
-    const lastUpload = devices
-      .map((device) => new Date(device.last_seen))
-      .filter((date) => !Number.isNaN(date.getTime()))
-      .sort((a, b) => b - a)[0];
-    return {
-      total: devices.length,
-      approved,
-      limited,
-      notRecommended,
-      lastUpload: lastUpload ? formatMalaysiaTime(lastUpload.toISOString()) : "-"
-    };
-  }, [devices]);
 
   async function refresh() {
     try {
@@ -161,7 +130,7 @@ function App() {
   }
 
   async function loadDevice(deviceId) {
-    setSelectedDeviceId(deviceId);
+    setSelectedDeviceId(Number(deviceId));
     setEditingOwner(false);
     setSaveMessage("");
     try {
@@ -216,163 +185,216 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="topbar">
+      <header className="app-header">
         <div>
           <p className="eyebrow">LMX Device Certification Platform</p>
-          <h1>Device Readiness Dashboard</h1>
+          <h1>Device Certification Dashboard</h1>
         </div>
-        <button className="icon-button" onClick={refresh} title="Refresh">
-          <RefreshCw size={18} />
-        </button>
+        <div className="header-actions">
+          <label>
+            <span>Current Device</span>
+            <select value={selectedDevice?.id || ""} onChange={(event) => loadDevice(event.target.value)}>
+              {devices.map((device) => (
+                <option key={device.id} value={device.id}>{device.device_name}</option>
+              ))}
+            </select>
+          </label>
+          <button className="secondary icon-button" onClick={refresh} title="Refresh">
+            <RefreshCw size={17} />
+          </button>
+        </div>
       </header>
 
-      <section className="status-row">
+      <section className="connection-bar">
         <div>
           <span className={apiOnline ? "dot online" : "dot"} />
           {apiOnline ? "Backend connected" : "Showing sample data"}
         </div>
-        <a href={`${API_BASE_URL}/docs`} target="_blank" rel="noreferrer">API docs</a>
-      </section>
-
-      <section className="apk-download-strip">
-        <div>
-          <strong>Android Agent APK</strong>
-          <span>Install this app on Android test devices to upload certification reports.</span>
+        <div className="connection-links">
+          <a href={`${API_BASE_URL}/docs`} target="_blank" rel="noreferrer">API Docs</a>
+          <a href={APK_DOWNLOAD_URL} download="lmx-android-agent-debug.apk">Download Android APK</a>
         </div>
-        <a className="download-apk-button prominent" href={APK_DOWNLOAD_URL} download="lmx-android-agent-debug.apk">
-          <Download size={18} />
-          Download APK
-        </a>
       </section>
 
-      <SummaryCards summary={summary} />
-
-      <DeviceList
-        devices={filteredDevices}
-        allDevices={devices}
-        selectedId={selectedDevice?.id}
-        searchTerm={searchTerm}
-        statusFilter={statusFilter}
-        ownerFilter={ownerFilter}
-        ownerOptions={ownerOptions}
-        onSearch={setSearchTerm}
-        onStatusFilter={setStatusFilter}
-        onOwnerFilter={setOwnerFilter}
-        onSelect={loadDevice}
+      <ExecutiveSummary report={report} />
+      <DeviceInformation
+        device={deviceDetail}
+        report={report}
+        editingOwner={editingOwner}
+        ownerDraft={ownerDraft}
+        saveMessage={saveMessage}
+        onEdit={() => {
+          setOwnerDraft(displayOwner(deviceDetail) === "Unassigned" ? "" : displayOwner(deviceDetail));
+          setEditingOwner(true);
+          setSaveMessage("");
+        }}
+        onCancel={() => setEditingOwner(false)}
+        onOwnerChange={setOwnerDraft}
+        onSave={saveOwner}
       />
+      <CompatibilityAssessment report={report} />
+      <DeviceReportSummary report={report} />
+      <CertificationConclusion report={report} />
+      <DeviceHistory device={deviceDetail} report={report} onSelectReport={loadReport} />
 
-      <section className="detail-grid">
-        <DeviceDetail
-          device={deviceDetail}
-          report={report}
-          editingOwner={editingOwner}
-          ownerDraft={ownerDraft}
-          saveMessage={saveMessage}
-          onEdit={() => {
-            setOwnerDraft(displayOwner(deviceDetail) === "Unassigned" ? "" : displayOwner(deviceDetail));
-            setEditingOwner(true);
-            setSaveMessage("");
-          }}
-          onCancel={() => setEditingOwner(false)}
-          onOwnerChange={setOwnerDraft}
-          onSave={saveOwner}
-        />
-        <ReportPage device={deviceDetail} report={report} />
-        <DiagnosticHistory device={deviceDetail} onSelectReport={loadReport} />
-      </section>
+      <footer className="dashboard-footer">
+        <strong>Developed by Grympha</strong>
+        <span>&copy; 2026 Grympha. Internal Use Only.</span>
+      </footer>
     </main>
   );
 }
 
-function SummaryCards({ summary }) {
+function ExecutiveSummary({ report }) {
+  const raw = report.raw_json || {};
+  const checks = raw.checks || {};
+  const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
   return (
-    <section className="summary-cards">
-      <MetricCard label="Total Devices" value={summary.total} />
-      <MetricCard label="Approved" value={summary.approved} tone="pass" />
-      <MetricCard label="Approved with Limitation" value={summary.limited} tone="warning" />
-      <MetricCard label="Not Recommended" value={summary.notRecommended} tone="fail" />
-      <MetricCard label="Last Upload Time" value={summary.lastUpload} helper="MYT (UTC+8)" wide />
+    <section className="section-card executive-summary">
+      <SectionHeader eyebrow="Section 1" title="Executive Summary" />
+      <div className="executive-grid">
+        <SummaryCard label="Device Certification Result" value={report.final_status} tone={statusTone(report.final_status)} />
+        <SummaryCard label="Final Recommendation" value={finalRecommendation} tone={statusTone(report.final_status)} wide>
+          <ExportActions reportId={report.id} />
+        </SummaryCard>
+        <SummaryCard label="Certification Score" value={`${report.score} / 100`} helper={scoreLabel(report, raw)} tone={scoreTone(report.score)} />
+        <SummaryCard label="Programmatic/VAST Readiness" value={checks.programmatic_vast?.status || "UNKNOWN"} tone={statusTone(checks.programmatic_vast?.status)} />
+        <SummaryCard label="Pull To Content Readiness" value={checks.pull_to_content?.status || "UNKNOWN"} tone={statusTone(checks.pull_to_content?.status)} />
+      </div>
     </section>
   );
 }
 
-function MetricCard({ label, value, helper = "", tone = "", wide = false }) {
+function SummaryCard({ label, value, helper, tone = "", wide = false, children }) {
   return (
-    <section className={`metric-card ${tone} ${wide ? "wide" : ""}`}>
+    <article className={`summary-card ${tone} ${wide ? "wide" : ""}`}>
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong>{value || "-"}</strong>
       {helper && <small>{helper}</small>}
+      {children}
+    </article>
+  );
+}
+
+function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessage, onEdit, onCancel, onOwnerChange, onSave }) {
+  const raw = report.raw_json || {};
+  const rows = [
+    ["Device Name", raw.device_name || device.device_name],
+    ["Manufacturer", raw.manufacturer || device.manufacturer],
+    ["Model", raw.model || device.model],
+    ["Android Version", raw.os_version || device.os_version],
+    ["CPU Architecture", raw.cpu_architecture],
+    ["RAM", gb(raw.ram_total_gb)],
+    ["Available Storage", gb(raw.storage_available_gb)],
+    ["Screen Resolution", raw.screen_resolution],
+    ["WebView Version", raw.webview_version || device.webview_version],
+    ["LMX Version", raw.lmx_app_version || device.lmx_app_version],
+    ["Report Date", formatMalaysiaTime(report.created_at)]
+  ];
+
+  return (
+    <section className="section-card">
+      <SectionHeader eyebrow="Section 2" title="Device Information" />
+      <div className="owner-row">
+        <div>
+          <span>Media Owner / Client</span>
+          {editingOwner ? (
+            <input value={ownerDraft} onChange={(event) => onOwnerChange(event.target.value)} placeholder="Client name" />
+          ) : (
+            <strong>{displayOwner(device, raw)}</strong>
+          )}
+        </div>
+        {editingOwner ? (
+          <div className="button-row">
+            <button onClick={onSave}><Save size={15} />Save</button>
+            <button className="secondary" onClick={onCancel}>Cancel</button>
+          </div>
+        ) : (
+          <button className="secondary" onClick={onEdit}><UserPen size={15} />Edit Client</button>
+        )}
+      </div>
+      {saveMessage && <p className="save-message">{saveMessage}</p>}
+      <div className="info-grid">
+        {rows.map(([label, value]) => (
+          <InfoItem key={label} label={label} value={value || "-"} />
+        ))}
+      </div>
     </section>
   );
 }
 
-function DeviceList({
-  devices,
-  allDevices,
-  selectedId,
-  searchTerm,
-  statusFilter,
-  ownerFilter,
-  ownerOptions,
-  onSearch,
-  onStatusFilter,
-  onOwnerFilter,
-  onSelect
-}) {
+function CompatibilityAssessment({ report }) {
+  const checks = report.raw_json?.checks || {};
   return (
-    <section className="panel device-list full-width">
-      <div className="panel-title row-title">
-        <div>
-          <LayoutDashboard size={18} />
-          <h2>Device List</h2>
-        </div>
-        <span>{devices.length} of {allDevices.length} devices</span>
+    <section className="section-card">
+      <SectionHeader eyebrow="Section 3" title="Device Compatibility" />
+      <div className="assessment-grid">
+        {[...deviceCompatibilityKeys, ...lmxReadinessKeys].map((key) => (
+          <AssessmentCard key={key} label={checkLabels[key]} check={checks[key]} />
+        ))}
       </div>
-      <div className="filters">
-        <label className="search-box">
-          <Search size={16} />
-          <input value={searchTerm} onChange={(event) => onSearch(event.target.value)} placeholder="Search device name" />
-        </label>
-        <select value={statusFilter} onChange={(event) => onStatusFilter(event.target.value)}>
-          <option>All</option>
-          <option>Approved</option>
-          <option>Approved with Limitation</option>
-          <option>Not Recommended</option>
-        </select>
-        <select value={ownerFilter} onChange={(event) => onOwnerFilter(event.target.value)}>
-          <option>All</option>
-          {ownerOptions.map((owner) => <option key={owner}>{owner}</option>)}
-        </select>
+    </section>
+  );
+}
+
+function DeviceReportSummary({ report }) {
+  const raw = report.raw_json || {};
+  const summary = report.device_report_summary || raw.device_report_summary || buildDeviceReportSummary(report, raw);
+  return (
+    <section className="section-card report-summary-section">
+      <SectionHeader eyebrow="Section 4" title="Device Report Summary" />
+      <div className="summary-focus">
+        <span>Overall Summary</span>
+        <p>{summary.overall_summary || "-"}</p>
       </div>
-      <div className="table-wrap">
-        <table>
+      <div className="summary-grid">
+        <SummaryList title="Strengths" items={summary.good_points} tone="pass" />
+        <SummaryList title="Warnings" items={summary.warning_points} tone="warning" />
+        <SummaryList title="Problems" items={summary.failed_points} tone="fail" />
+        <SummaryList title="Likely Causes" items={summary.likely_causes} />
+        <SummaryList title="Recommended Actions" items={summary.recommended_actions} wide />
+      </div>
+      <ExportActions reportId={report.id} />
+    </section>
+  );
+}
+
+function CertificationConclusion({ report }) {
+  const raw = report.raw_json || {};
+  const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
+  return (
+    <section className={`section-card conclusion-card ${statusTone(report.final_status)}`}>
+      <SectionHeader eyebrow="Section 5" title="Certification Conclusion" />
+      <strong>{finalRecommendation}</strong>
+      <p>{conclusionText(report.final_status)}</p>
+    </section>
+  );
+}
+
+function DeviceHistory({ device, report, onSelectReport }) {
+  const reports = device.reports?.length ? device.reports : [report];
+  return (
+    <section className="section-card history-card">
+      <SectionHeader eyebrow="Section 6" title="Device History" />
+      <div className="history-table-wrap">
+        <table className="history-table">
           <thead>
             <tr>
-              <th>Media Owner / Client</th>
+              <th>Date</th>
               <th>Device</th>
-              <th>Platform</th>
-              <th>Model</th>
-              <th>OS</th>
-              <th>WebView</th>
-              <th>LMX App</th>
-              <th>Status</th>
-              <th>Score</th>
-              <th>Last Check</th>
+              <th>Result</th>
+              <th>Certification Score</th>
+              <th>View Report</th>
             </tr>
           </thead>
           <tbody>
-            {devices.map((device) => (
-              <tr key={device.id} className={device.id === selectedId ? "selected" : ""} onClick={() => onSelect(device.id)}>
-                <td>{displayOwner(device)}</td>
+            {reports.map((item) => (
+              <tr key={item.id}>
+                <td>{formatMalaysiaTime(item.created_at)}</td>
                 <td>{device.device_name}</td>
-                <td>{device.platform}</td>
-                <td>{device.manufacturer} {device.model}</td>
-                <td>{device.os_version}</td>
-                <td>{device.webview_version || "-"}</td>
-                <td>{device.lmx_app_version || "-"}</td>
-                <td><StatusPill status={device.latest_status} /></td>
-                <td>{device.latest_score}</td>
-                <td>{formatMalaysiaTime(device.last_seen)}</td>
+                <td><StatusPill status={item.final_status} /></td>
+                <td>{item.score} / 100</td>
+                <td><button className="table-button" onClick={() => onSelectReport(item.id)}>View Report</button></td>
               </tr>
             ))}
           </tbody>
@@ -382,169 +404,78 @@ function DeviceList({
   );
 }
 
-function DeviceDetail({ device, report, editingOwner, ownerDraft, saveMessage, onEdit, onCancel, onOwnerChange, onSave }) {
-  const checks = report?.raw_json?.checks || {};
+function ExportActions({ reportId }) {
   return (
-    <section className="panel">
-      <div className="panel-title">
-        <FileText size={18} />
-        <h2>Device Detail</h2>
-      </div>
-      <div className="summary-strip">
-        <strong>{device.device_name}</strong>
-        <span>{device.platform} - {device.manufacturer} {device.model}</span>
-      </div>
-      <div className="owner-editor">
-        <div>
-          <span className="label">Media Owner / Client</span>
-          {editingOwner ? (
-            <input value={ownerDraft} onChange={(event) => onOwnerChange(event.target.value)} placeholder="Client name" />
-          ) : (
-            <strong>{displayOwner(device)}</strong>
-          )}
-        </div>
-        {editingOwner ? (
-          <div className="button-row">
-            <button onClick={onSave}><Save size={15} />Save</button>
-            <button className="secondary" onClick={onCancel}>Cancel</button>
-          </div>
-        ) : (
-          <button onClick={onEdit}><UserPen size={15} />Edit Client</button>
-        )}
-      </div>
-      {saveMessage && <p className="save-message">{saveMessage}</p>}
-      <h3>Device Compatibility</h3>
-      <div className="check-grid">
-        {deviceCompatibilityKeys.map((key) => <CheckRow key={key} label={checkLabels[key]} check={checks[key]} />)}
-      </div>
-      <h3>LMX Content Readiness</h3>
-      <div className="check-grid">
-        {lmxReadinessKeys.map((key) => <CheckRow key={key} label={checkLabels[key]} check={checks[key]} />)}
-      </div>
-    </section>
-  );
-}
-
-function ReportPage({ device, report }) {
-  const raw = report.raw_json || {};
-  const checks = Object.values(raw.checks || {});
-  const failed = checks.filter((check) => check.status === "FAIL");
-  const limitations = checks.filter((check) => check.status === "WARNING");
-  const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
-  const deviceSummary = report.device_report_summary || raw.device_report_summary || buildDeviceReportSummary(report, raw);
-
-  return (
-    <section className="panel report">
-      <div className="panel-title">
-        <Download size={18} />
-        <h2>Report</h2>
-      </div>
-      <div className="report-head">
-        <div>
-          <p className="eyebrow">Device Certification Result</p>
-          <h3>{report.final_status}</h3>
-        </div>
-        <div className="score">{report.score}</div>
-      </div>
-      <div className="result-grid">
-        <section>
-          <span>Final Recommendation</span>
-          <strong>{finalRecommendation}</strong>
-        </section>
-      </div>
-      <div className="export-row report-actions">
-        <a href={`${API_BASE_URL}/api/reports/${report.id}/pdf`} target="_blank" rel="noreferrer">
-          <Download size={16} />
-          Download PDF
-        </a>
-        <a href={`${API_BASE_URL}/api/reports/${report.id}/docx`} target="_blank" rel="noreferrer">
-          <FileText size={16} />
-          Download DOCX
-        </a>
-        <button className="secondary" onClick={() => window.print()}>Print Report</button>
-      </div>
-      <DeviceReportSummary summary={deviceSummary} />
-      <dl>
-        <dt>Media Owner / Client</dt><dd>{displayOwner(device, raw)}</dd>
-        <dt>Device</dt><dd>{raw.device_name}</dd>
-        <dt>Platform</dt><dd>{raw.platform}</dd>
-        <dt>Report Time</dt><dd>{formatMalaysiaTime(report.created_at)}</dd>
-        <dt>Android Version</dt><dd>{raw.os_version}</dd>
-        <dt>WebView Version</dt><dd>{raw.webview_version}</dd>
-        <dt>RAM</dt><dd>{raw.ram_total_gb}GB</dd>
-        <dt>Storage Available</dt><dd>{raw.storage_available_gb}GB</dd>
-        <dt>LMX Content Version</dt><dd>{raw.lmx_app_version || "Not detected"}</dd>
-      </dl>
-      <h3>Device Compatibility</h3>
-      <div className="check-grid">
-        {deviceCompatibilityKeys.map((key) => <CheckRow key={key} label={checkLabels[key]} check={raw.checks?.[key]} />)}
-      </div>
-      <h3>LMX Content Readiness</h3>
-      <div className="check-grid">
-        {lmxReadinessKeys.map((key) => <CheckRow key={key} label={checkLabels[key]} check={raw.checks?.[key]} />)}
-      </div>
-      <h3>Failed Checks</h3>
-      <ListOrNone items={failed.map((check) => check.message)} />
-      <h3>Limitations</h3>
-      <ListOrNone items={limitations.map((check) => check.message)} />
-      <h3>Recommended Action</h3>
-      <p><strong>{finalRecommendation}.</strong> {report.recommendations}</p>
-      <div className="export-row">
-        <a href={`${API_BASE_URL}/api/export/${report.id}?format=html`} target="_blank" rel="noreferrer">HTML</a>
-        <a href={`${API_BASE_URL}/api/export/${report.id}?format=json`} target="_blank" rel="noreferrer">JSON</a>
-      </div>
-    </section>
-  );
-}
-
-function DeviceReportSummary({ summary }) {
-  return (
-    <section className="report-summary">
-      <h3>Device Report Summary</h3>
-      <div className="summary-block">
-        <span>Overall Summary</span>
-        <p>{summary.overall_summary || "-"}</p>
-      </div>
-      <SummaryList title="Good Points" items={summary.good_points} tone="pass" />
-      <SummaryList title="Warning Points" items={summary.warning_points} tone="warning" />
-      <SummaryList title="Problem Points" items={summary.failed_points} tone="fail" />
-      <SummaryList title="Likely Causes" items={summary.likely_causes} />
-      <SummaryList title="Recommended Actions" items={summary.recommended_actions} />
-    </section>
-  );
-}
-
-function SummaryList({ title, items = [], tone = "" }) {
-  return (
-    <div className={`summary-block ${tone}`}>
-      <span>{title}</span>
-      <ListOrNone items={items} />
+    <div className="export-actions">
+      <a href={`${API_BASE_URL}/api/reports/${reportId}/pdf`} target="_blank" rel="noreferrer">
+        <Download size={16} />
+        Download PDF
+      </a>
+      <a href={`${API_BASE_URL}/api/reports/${reportId}/docx`} target="_blank" rel="noreferrer">
+        <FileText size={16} />
+        Download DOCX
+      </a>
+      <button className="secondary" onClick={() => window.print()}>
+        <Printer size={16} />
+        Print Report
+      </button>
     </div>
   );
 }
 
-function DiagnosticHistory({ device, onSelectReport }) {
+function SectionHeader({ eyebrow, title }) {
   return (
-    <section className="panel">
-      <div className="panel-title">
-        <FileText size={18} />
-        <h2>Diagnostic History</h2>
-      </div>
-      <div className="history-list">
-        {(device.reports || []).map((item) => (
-          <button key={item.id} onClick={() => onSelectReport(item.id)}>
-            <span>{formatMalaysiaTime(item.created_at)}</span>
-            <strong>{item.final_status} - {item.score}</strong>
-            <small>{item.summary}</small>
-          </button>
-        ))}
-      </div>
-    </section>
+    <div className="section-header">
+      <span>{eyebrow}</span>
+      <h2>{title}</h2>
+    </div>
   );
 }
 
+function InfoItem({ label, value }) {
+  return (
+    <div className="info-item">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function AssessmentCard({ label, check }) {
+  const status = check?.status || "UNKNOWN";
+  return (
+    <article className={`assessment-card ${statusTone(status)}`}>
+      <div>
+        <span className="status-marker" />
+        <strong>{label}</strong>
+      </div>
+      <StatusPill status={status} />
+      <p>{check?.message || "No assessment details available."}</p>
+    </article>
+  );
+}
+
+function SummaryList({ title, items = [], tone = "", wide = false }) {
+  return (
+    <article className={`summary-list ${tone} ${wide ? "wide" : ""}`}>
+      <h3>{title}</h3>
+      <ListOrNone items={items} />
+    </article>
+  );
+}
+
+function StatusPill({ status }) {
+  const key = String(status || "UNKNOWN").toLowerCase().replaceAll(" ", "-");
+  return <span className={`pill ${key}`}>{status || "UNKNOWN"}</span>;
+}
+
+function ListOrNone({ items }) {
+  if (!items?.length) return <p className="empty-text">None</p>;
+  return <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>;
+}
+
 const deviceCompatibilityKeys = ["android_version", "ram", "storage", "webview", "network", "time_timezone"];
-const lmxReadinessKeys = ["lmx_app_installed", "lmx_app_launch", "lmx_version", "programmatic_vast", "pull_to_content"];
+const lmxReadinessKeys = ["lmx_app_installed", "lmx_app_launch", "programmatic_vast", "pull_to_content"];
 
 const checkLabels = {
   android_version: "Android Version",
@@ -552,32 +483,12 @@ const checkLabels = {
   storage: "Storage",
   webview: "WebView",
   network: "Network",
-  time_timezone: "Time/Timezone",
-  lmx_app_installed: "LMX App Installed",
-  lmx_app_launch: "LMX App Launch",
-  lmx_version: "LMX Version",
-  programmatic_vast: "Programmatic/VAST Readiness",
+  time_timezone: "Time / Timezone",
+  lmx_app_installed: "LMX Installed",
+  lmx_app_launch: "LMX Launch",
+  programmatic_vast: "Programmatic / VAST Readiness",
   pull_to_content: "Pull To Content Readiness"
 };
-
-function CheckRow({ label, check }) {
-  return (
-    <div className="check-row">
-      <span>{label}</span>
-      <StatusPill status={check?.status || "UNKNOWN"} />
-    </div>
-  );
-}
-
-function StatusPill({ status }) {
-  const key = String(status).toLowerCase().replaceAll(" ", "-");
-  return <span className={`pill ${key}`}>{status}</span>;
-}
-
-function ListOrNone({ items }) {
-  if (!items.length) return <p>None</p>;
-  return <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>;
-}
 
 function displayOwner(device = {}, raw = {}) {
   return device.media_owner || raw.media_owner || raw.client_name || "Unassigned";
@@ -587,6 +498,42 @@ function finalRecommendationFrom(deviceStatus) {
   if (deviceStatus === "Approved") return "Certified for LMX Content";
   if (deviceStatus === "Approved with Limitation") return "Certified with Limitation";
   return "Not Recommended";
+}
+
+function scoreLabel(report, raw = {}) {
+  return raw.score_label || scoreLabelFromValue(report.score);
+}
+
+function scoreLabelFromValue(score) {
+  if (score >= 95) return "Excellent";
+  if (score >= 80) return "Good";
+  if (score >= 60) return "Limited";
+  return "Not Recommended";
+}
+
+function scoreTone(score) {
+  if (score >= 95) return "pass";
+  if (score >= 80) return "good";
+  if (score >= 60) return "warning";
+  return "fail";
+}
+
+function statusTone(status = "") {
+  const value = String(status).toLowerCase();
+  if (value.includes("approved") || value === "pass" || value.includes("certified for")) return "pass";
+  if (value.includes("limitation") || value === "warning") return "warning";
+  if (value.includes("not recommended") || value === "fail") return "fail";
+  return "neutral";
+}
+
+function conclusionText(status) {
+  if (status === "Approved") {
+    return "This device meets all LMX Content certification requirements and is suitable for deployment.";
+  }
+  if (status === "Approved with Limitation") {
+    return "This device can be used for LMX Content but has one or more limitations that should be reviewed before deployment.";
+  }
+  return "This device does not meet the minimum LMX Content requirements and is not recommended for deployment.";
 }
 
 function buildDeviceReportSummary(report, raw) {
@@ -612,7 +559,6 @@ function likelyCauses(checks) {
     time_timezone: "Incorrect device time or timezone can affect scheduled content and reporting.",
     lmx_app_installed: "LMX Content may not be installed on the device.",
     lmx_app_launch: "LMX Content may be installed but not launchable from Android.",
-    lmx_version: "The LMX Content version could not be detected.",
     programmatic_vast: "Programmatic/VAST readiness may be limited by Android version, WebView, RAM, or network state.",
     pull_to_content: "The installed LMX Content version may be below the Pull To Content requirement."
   };
@@ -633,7 +579,6 @@ function recommendedActions(checks, recommendations) {
     time_timezone: "Correct the device date, time, and timezone settings.",
     lmx_app_installed: "Install LMX Content package com.qruize.quad42.media.app.",
     lmx_app_launch: "Reinstall or update LMX Content, then confirm the app can launch.",
-    lmx_version: "Install a supported LMX Content build and rerun certification.",
     programmatic_vast: "Update WebView and verify Android version, RAM, and internet connectivity.",
     pull_to_content: "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer."
   };
@@ -660,6 +605,11 @@ function formatMalaysiaTime(timestamp) {
     hour12: true
   }).format(date);
   return `${formatted.replace(/\b(am|pm)\b/i, (value) => value.toUpperCase())} MYT`;
+}
+
+function gb(value) {
+  if (value === undefined || value === null || value === "") return "-";
+  return `${value} GB`;
 }
 
 createRoot(document.getElementById("root")).render(<App />);

@@ -7,6 +7,9 @@
 - Added `GET /api/reports/{id}/docx` for professional DOCX report download.
 - Added dashboard `Download PDF`, `Download DOCX`, and `Print Report` actions.
 - Added `reportlab` and `python-docx` backend dependencies.
+- Redesigned the dashboard into an enterprise card-based certification view.
+- Updated report export footers to platform-only branding.
+- Updated certification score calculation to the weighted 100-point model.
 
 ## 0.1.13
 
