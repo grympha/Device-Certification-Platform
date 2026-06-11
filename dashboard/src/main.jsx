@@ -236,7 +236,7 @@ function App() {
       </header>
 
       <ExecutiveSummary report={report} apiOnline={apiOnline} />
-      <div className="split-grid split-grid-certification">
+      <div className="split-grid split-grid-halves">
         <DeviceInformation
           device={deviceDetail}
           report={report}
@@ -253,7 +253,6 @@ function App() {
           onSave={saveOwner}
         />
         <CompatibilityAssessment report={report} />
-        <CertificationConclusion report={report} />
       </div>
       <DeviceReportSummary report={report} />
       <DeviceHistory device={deviceDetail} report={report} onSelectReport={loadReport} />
@@ -403,17 +402,6 @@ function DeviceReportSummary({ report }) {
         <SummaryList title="Problems" items={summary.failed_points} tone="fail" />
         <SummaryList title="Recommended Actions" items={summary.recommended_actions} tone="neutral" />
       </div>
-    </section>
-  );
-}
-
-function CertificationConclusion({ report }) {
-  const raw = report.raw_json || {};
-  const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
-  return (
-    <section className={`section-card conclusion-card ${statusTone(report.final_status)}`}>
-      <strong>{finalRecommendation}</strong>
-      <p>{conclusionText(report.final_status)}</p>
     </section>
   );
 }

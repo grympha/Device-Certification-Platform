@@ -204,8 +204,8 @@ input {
   margin-top: 0;
 }
 
-.split-grid-certification {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(240px, 1fr);
+.split-grid-halves {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .split-grid-summary {
@@ -527,44 +527,6 @@ li {
   color: var(--muted);
 }
 
-.conclusion-card {
-  display: grid;
-  align-content: center;
-  min-height: 100%;
-  padding: 18px;
-  border-left: 5px solid var(--blue);
-  text-align: center;
-}
-
-.conclusion-card.pass {
-  border-left-color: var(--success);
-}
-
-.conclusion-card.warning {
-  border-left-color: var(--warning);
-}
-
-.conclusion-card.fail {
-  border-left-color: var(--failure);
-}
-
-.conclusion-card > strong {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 19px;
-  line-height: 1.25;
-}
-
-.conclusion-card p {
-  max-width: 260px;
-  margin-right: auto;
-  margin-bottom: 0;
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
 .history-table-wrap {
   overflow-x: auto;
 }
@@ -659,7 +621,7 @@ li {
 }
 
 @media (max-width: 1020px) {
-  .split-grid-certification,
+  .split-grid-halves,
   .split-grid-summary {
     grid-template-columns: 1fr;
   }
@@ -694,7 +656,7 @@ li {
 
   .executive-grid,
   .assessment-grid,
-  .split-grid-certification,
+  .split-grid-halves,
   .split-grid-summary,
   .summary-grid {
     grid-template-columns: 1fr;
