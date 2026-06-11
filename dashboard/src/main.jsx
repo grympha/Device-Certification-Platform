@@ -1,6 +1,23 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Download, FileText, Printer, RefreshCw, Save, UserPen } from "lucide-react";
+import {
+  BarChart3,
+  CheckCircle2,
+  ClipboardCheck,
+  Download,
+  Eye,
+  FileText,
+  Info,
+  MoreVertical,
+  Printer,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+  Smartphone,
+  TriangleAlert,
+  UserPen,
+  XCircle
+} from "lucide-react";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -186,9 +203,14 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div>
-          <p className="eyebrow">LMX Device Certification Platform</p>
-          <h1>Device Certification Dashboard</h1>
+        <div className="brand-block">
+          <div className="brand-mark">
+            <ShieldCheck size={30} />
+          </div>
+          <div>
+            <p className="eyebrow">LMX Device Certification Platform</p>
+            <h1>Device Certification Dashboard</h1>
+          </div>
         </div>
         <div className="header-actions">
           <label>
@@ -202,21 +224,18 @@ function App() {
           <button className="secondary icon-button" onClick={refresh} title="Refresh">
             <RefreshCw size={17} />
           </button>
+          <a className="top-action" href={`${API_BASE_URL}/docs`} target="_blank" rel="noreferrer">
+            <FileText size={16} />
+            API Docs
+          </a>
+          <a className="top-action" href={APK_DOWNLOAD_URL} download="lmx-android-agent-debug.apk">
+            <Download size={16} />
+            Download Android APK
+          </a>
         </div>
       </header>
 
-      <section className="connection-bar">
-        <div>
-          <span className={apiOnline ? "dot online" : "dot"} />
-          {apiOnline ? "Backend connected" : "Showing sample data"}
-        </div>
-        <div className="connection-links">
-          <a href={`${API_BASE_URL}/docs`} target="_blank" rel="noreferrer">API Docs</a>
-          <a href={APK_DOWNLOAD_URL} download="lmx-android-agent-debug.apk">Download Android APK</a>
-        </div>
-      </section>
-
-      <ExecutiveSummary report={report} />
+      <ExecutiveSummary report={report} apiOnline={apiOnline} />
       <DeviceInformation
         device={deviceDetail}
         report={report}
@@ -245,33 +264,62 @@ function App() {
   );
 }
 
-function ExecutiveSummary({ report }) {
+function ExecutiveSummary({ report, apiOnline }) {
   const raw = report.raw_json || {};
   const checks = raw.checks || {};
   const finalRecommendation = report.final_recommendation || raw.final_recommendation || finalRecommendationFrom(report.final_status);
   return (
     <section className="section-card executive-summary">
-      <SectionHeader eyebrow="Section 1" title="Executive Summary" />
+      <SectionHeader eyebrow="Section 1" title="Executive Summary">
+        <div className="backend-status">
+          <span className={apiOnline ? "dot online" : "dot"} />
+          {apiOnline ? "Backend Connected" : "Showing Sample Data"}
+        </div>
+      </SectionHeader>
       <div className="executive-grid">
-        <SummaryCard label="Device Certification Result" value={report.final_status} tone={statusTone(report.final_status)} />
+        <SummaryCard
+          icon={<ShieldCheck size={24} />}
+          label="Device Certification Result"
+          value={report.final_status}
+          tone={statusTone(report.final_status)}
+        />
         <SummaryCard label="Final Recommendation" value={finalRecommendation} tone={statusTone(report.final_status)} wide>
-          <ExportActions reportId={report.id} />
+          <ExportActions reportId={report.id} iconOnly />
         </SummaryCard>
-        <SummaryCard label="Certification Score" value={`${report.score} / 100`} helper={scoreLabel(report, raw)} tone={scoreTone(report.score)} />
-        <SummaryCard label="Programmatic/VAST Readiness" value={checks.programmatic_vast?.status || "UNKNOWN"} tone={statusTone(checks.programmatic_vast?.status)} />
-        <SummaryCard label="Pull To Content Readiness" value={checks.pull_to_content?.status || "UNKNOWN"} tone={statusTone(checks.pull_to_content?.status)} />
+        <SummaryCard
+          icon={<BarChart3 size={24} />}
+          label="Certification Score"
+          value={`${report.score} / 100`}
+          helper={scoreLabel(report, raw)}
+          tone={scoreTone(report.score)}
+        />
+        <SummaryCard
+          icon={<ClipboardCheck size={24} />}
+          label="Programmatic/VAST Readiness"
+          value={checks.programmatic_vast?.status || "UNKNOWN"}
+          tone={statusTone(checks.programmatic_vast?.status)}
+        />
+        <SummaryCard
+          icon={<FileText size={24} />}
+          label="Pull To Content Readiness"
+          value={checks.pull_to_content?.status || "UNKNOWN"}
+          tone={statusTone(checks.pull_to_content?.status)}
+        />
       </div>
     </section>
   );
 }
 
-function SummaryCard({ label, value, helper, tone = "", wide = false, children }) {
+function SummaryCard({ icon, label, value, helper, tone = "", wide = false, children }) {
   return (
     <article className={`summary-card ${tone} ${wide ? "wide" : ""}`}>
-      <span>{label}</span>
-      <strong>{value || "-"}</strong>
-      {helper && <small>{helper}</small>}
-      {children}
+      {icon && <div className="summary-icon">{icon}</div>}
+      <div className="summary-content">
+        <span>{label}</span>
+        <strong>{value || "-"}</strong>
+        {helper && <small>{helper}</small>}
+        {children}
+      </div>
     </article>
   );
 }
@@ -294,8 +342,15 @@ function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessa
 
   return (
     <section className="section-card">
-      <SectionHeader eyebrow="Section 2" title="Device Information" />
-      <div className="owner-row">
+      <SectionHeader eyebrow="Section 2" title="Device Information">
+        <div className="section-actions">
+          <button className="secondary compact-button">
+            <Eye size={15} />
+            View Details
+          </button>
+        </div>
+      </SectionHeader>
+      <div className="owner-row compact-owner">
         <div>
           <span>Media Owner / Client</span>
           {editingOwner ? (
@@ -327,7 +382,12 @@ function CompatibilityAssessment({ report }) {
   const checks = report.raw_json?.checks || {};
   return (
     <section className="section-card">
-      <SectionHeader eyebrow="Section 3" title="Device Compatibility" />
+      <SectionHeader eyebrow="Section 3" title="Device Compatibility">
+        <button className="secondary compact-button">
+          <Eye size={15} />
+          View Details
+        </button>
+      </SectionHeader>
       <div className="assessment-grid">
         {[...deviceCompatibilityKeys, ...lmxReadinessKeys].map((key) => (
           <AssessmentCard key={key} label={checkLabels[key]} check={checks[key]} />
@@ -342,7 +402,12 @@ function DeviceReportSummary({ report }) {
   const summary = report.device_report_summary || raw.device_report_summary || buildDeviceReportSummary(report, raw);
   return (
     <section className="section-card report-summary-section">
-      <SectionHeader eyebrow="Section 4" title="Device Report Summary" />
+      <SectionHeader eyebrow="Section 4" title="Device Report Summary">
+        <button className="secondary compact-button">
+          <Eye size={15} />
+          View Details
+        </button>
+      </SectionHeader>
       <div className="summary-focus">
         <span>Overall Summary</span>
         <p>{summary.overall_summary || "-"}</p>
@@ -351,10 +416,8 @@ function DeviceReportSummary({ report }) {
         <SummaryList title="Strengths" items={summary.good_points} tone="pass" />
         <SummaryList title="Warnings" items={summary.warning_points} tone="warning" />
         <SummaryList title="Problems" items={summary.failed_points} tone="fail" />
-        <SummaryList title="Likely Causes" items={summary.likely_causes} />
-        <SummaryList title="Recommended Actions" items={summary.recommended_actions} wide />
+        <SummaryList title="Recommended Actions" items={summary.recommended_actions} tone="neutral" />
       </div>
-      <ExportActions reportId={report.id} />
     </section>
   );
 }
@@ -382,9 +445,10 @@ function DeviceHistory({ device, report, onSelectReport }) {
             <tr>
               <th>Date</th>
               <th>Device</th>
-              <th>Result</th>
+              <th>Certification Result</th>
               <th>Certification Score</th>
-              <th>View Report</th>
+              <th>Recommendation</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -394,7 +458,16 @@ function DeviceHistory({ device, report, onSelectReport }) {
                 <td>{device.device_name}</td>
                 <td><StatusPill status={item.final_status} /></td>
                 <td>{item.score} / 100</td>
-                <td><button className="table-button" onClick={() => onSelectReport(item.id)}>View Report</button></td>
+                <td>{item.final_recommendation || report.final_recommendation || "-"}</td>
+                <td className="table-actions">
+                  <button className="table-button" onClick={() => onSelectReport(item.id)}>
+                    <Eye size={15} />
+                    View Report
+                  </button>
+                  <button className="ghost-icon" title="More actions">
+                    <MoreVertical size={16} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -404,30 +477,33 @@ function DeviceHistory({ device, report, onSelectReport }) {
   );
 }
 
-function ExportActions({ reportId }) {
+function ExportActions({ reportId, iconOnly = false }) {
   return (
-    <div className="export-actions">
-      <a href={`${API_BASE_URL}/api/reports/${reportId}/pdf`} target="_blank" rel="noreferrer">
+    <div className={`export-actions ${iconOnly ? "icon-only" : ""}`}>
+      <a href={`${API_BASE_URL}/api/reports/${reportId}/pdf`} target="_blank" rel="noreferrer" title="Download PDF" aria-label="Download PDF">
         <Download size={16} />
-        Download PDF
+        {!iconOnly && "Download PDF"}
       </a>
-      <a href={`${API_BASE_URL}/api/reports/${reportId}/docx`} target="_blank" rel="noreferrer">
+      <a href={`${API_BASE_URL}/api/reports/${reportId}/docx`} target="_blank" rel="noreferrer" title="Download DOCX" aria-label="Download DOCX">
         <FileText size={16} />
-        Download DOCX
+        {!iconOnly && "Download DOCX"}
       </a>
-      <button className="secondary" onClick={() => window.print()}>
+      <button className="secondary" onClick={() => window.print()} title="Print Report" aria-label="Print Report">
         <Printer size={16} />
-        Print Report
+        {!iconOnly && "Print Report"}
       </button>
     </div>
   );
 }
 
-function SectionHeader({ eyebrow, title }) {
+function SectionHeader({ eyebrow, title, children }) {
   return (
     <div className="section-header">
-      <span>{eyebrow}</span>
-      <h2>{title}</h2>
+      <div>
+        <span>{eyebrow}</span>
+        <h2>{title}</h2>
+      </div>
+      {children}
     </div>
   );
 }
@@ -435,6 +511,7 @@ function SectionHeader({ eyebrow, title }) {
 function InfoItem({ label, value }) {
   return (
     <div className="info-item">
+      <Smartphone size={15} />
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -446,11 +523,10 @@ function AssessmentCard({ label, check }) {
   return (
     <article className={`assessment-card ${statusTone(status)}`}>
       <div>
-        <span className="status-marker" />
+        <StatusIcon status={status} />
         <strong>{label}</strong>
       </div>
       <StatusPill status={status} />
-      <p>{check?.message || "No assessment details available."}</p>
     </article>
   );
 }
@@ -467,6 +543,14 @@ function SummaryList({ title, items = [], tone = "", wide = false }) {
 function StatusPill({ status }) {
   const key = String(status || "UNKNOWN").toLowerCase().replaceAll(" ", "-");
   return <span className={`pill ${key}`}>{status || "UNKNOWN"}</span>;
+}
+
+function StatusIcon({ status }) {
+  const tone = statusTone(status);
+  if (tone === "pass") return <CheckCircle2 className="status-icon pass" size={17} />;
+  if (tone === "warning") return <TriangleAlert className="status-icon warning" size={17} />;
+  if (tone === "fail") return <XCircle className="status-icon fail" size={17} />;
+  return <Info className="status-icon neutral" size={17} />;
 }
 
 function ListOrNone({ items }) {
