@@ -19,6 +19,7 @@
 
 body {
   margin: 0;
+  font-size: 14px;
 }
 
 button,
@@ -106,7 +107,7 @@ button.secondary,
 .summary-card span,
 .summary-focus span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -121,18 +122,18 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: 31px;
+  font-size: 29px;
   line-height: 1.1;
 }
 
 h2 {
   margin: 2px 0 0;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 h3 {
   margin-bottom: 8px;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .header-actions {
@@ -152,7 +153,7 @@ h3 {
 
 .header-actions label span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -203,8 +204,8 @@ input {
   margin-top: 0;
 }
 
-.split-grid-halves {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.split-grid-certification {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(240px, 1fr);
 }
 
 .split-grid-summary {
@@ -259,13 +260,13 @@ input {
 
 .summary-card strong {
   color: var(--ink);
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1.2;
 }
 
 .summary-card small {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 750;
 }
 
@@ -364,7 +365,7 @@ input {
 }
 
 .owner-row strong {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .button-row {
@@ -376,7 +377,7 @@ input {
 .save-message {
   margin: -8px 0 16px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .info-grid {
@@ -397,7 +398,7 @@ input {
 
 .info-item strong {
   justify-self: end;
-  font-size: 15px;
+  font-size: 14px;
   text-align: right;
 }
 
@@ -474,7 +475,7 @@ input {
 
 .summary-focus p {
   margin: 8px 0 0;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -529,6 +530,8 @@ li {
 .conclusion-card {
   display: grid;
   align-content: center;
+  min-height: 100%;
+  padding: 18px;
   border-left: 5px solid var(--blue);
   text-align: center;
 }
@@ -548,16 +551,17 @@ li {
 .conclusion-card > strong {
   display: block;
   margin-bottom: 8px;
-  font-size: 22px;
+  font-size: 19px;
+  line-height: 1.25;
 }
 
 .conclusion-card p {
-  max-width: 820px;
+  max-width: 260px;
   margin-right: auto;
   margin-bottom: 0;
   margin-left: auto;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -576,7 +580,7 @@ li {
   padding: 14px 12px;
   border-bottom: 1px solid var(--line);
   text-align: left;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .history-table th {
@@ -624,14 +628,14 @@ li {
   display: inline-flex;
   align-items: center;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 650;
 }
 
 .compact-button {
   min-height: 32px;
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .section-actions {
@@ -655,7 +659,7 @@ li {
 }
 
 @media (max-width: 1020px) {
-  .split-grid-halves,
+  .split-grid-certification,
   .split-grid-summary {
     grid-template-columns: 1fr;
   }
@@ -690,7 +694,7 @@ li {
 
   .executive-grid,
   .assessment-grid,
-  .split-grid-halves,
+  .split-grid-certification,
   .split-grid-summary,
   .summary-grid {
     grid-template-columns: 1fr;
@@ -712,7 +716,7 @@ li {
   }
 
   h1 {
-    font-size: 26px;
+    font-size: 24px;
   }
 }
 
