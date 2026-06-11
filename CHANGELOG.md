@@ -3,6 +3,8 @@
 ## 0.2.0
 
 - Added Phase 2 Windows Device Certification support for Windows 10 and Windows 11.
+- Added `LMX Windows Certification` desktop app UI for run/review/upload flow.
+- Added PyInstaller build script for `LMX-Windows-Certification.exe`.
 - Added Windows-specific backend scoring for OS, CPU, RAM, storage, GPU, network, time/timezone, LMX installed, LMX version, LMX launch, and Pull To Content readiness.
 - Added non-scoring Windows Deployment Readiness output for Auto Login, Auto Startup, Power Settings, Display Scaling, Wake Timers, and Windows Update Status.
 - Added Python Windows Certification Agent in `windows-agent/windows_certification_agent.py`.

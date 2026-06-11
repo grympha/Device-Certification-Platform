@@ -4,10 +4,13 @@ __pycache__/
 .venv/
 *.db
 .pytest_cache/
+windows-agent/*.spec
 
 # Node
 node_modules/
 dist/
+!windows-agent/dist/
+!windows-agent/dist/LMX-Windows-Certification.exe
 .env
 .env.local
 

@@ -230,6 +230,27 @@ python windows_certification_agent.py --upload --backend-url https://device-cert
 ```
 
 Windows reports use the same `POST /api/reports` endpoint, dashboard, PDF export, and DOCX export as Android reports. The dashboard shows a `WINDOWS` platform badge, Windows-specific fields, Windows scoring checks, and non-scoring Deployment Readiness.
+
+The Windows desktop app can be run from source:
+
+```powershell
+cd windows-agent
+python -m pip install -r requirements.txt
+python windows_certification_ui.py
+```
+
+Build the standalone EXE:
+
+```powershell
+cd windows-agent
+build_windows_exe.bat
+```
+
+The EXE is generated at:
+
+```text
+windows-agent\dist\LMX-Windows-Certification.exe
+```
 - Render deployment guide: `docs/RENDER_DEPLOYMENT.md`
 - Deployment checklist: `docs/DEPLOYMENT_CHECKLIST.md`
 - Neon PostgreSQL setup: `docs/NEON_POSTGRES_SETUP.md`
