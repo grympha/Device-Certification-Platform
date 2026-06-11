@@ -43,6 +43,7 @@ class MainActivity : Activity() {
     private val auditFilePath = "/sdcard/Android/data/$lmxPackage/files/QUAD42AUDIT/appender.csv"
     private lateinit var output: TextView
     private lateinit var status: TextView
+    private lateinit var storageNotice: TextView
     private lateinit var debugInfo: TextView
     private lateinit var lmxHealthOutput: TextView
     private lateinit var latestReport: JSONObject
@@ -54,21 +55,13 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
-        if (hasStorageAccess()) {
-            runDiagnostics()
-        } else {
-            showStoragePermissionScreen()
-        }
+        runDiagnostics()
     }
 
     override fun onResume() {
         super.onResume()
-        if (!waitingForStoragePermission) return
         waitingForStoragePermission = false
-        if (hasStorageAccess()) {
-            runDiagnostics()
-        } else {
-            status.text = "Storage access not granted."
+        if (this::status.isInitialized) {
             runDiagnostics()
         }
     }
@@ -77,12 +70,7 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != readStorageRequestCode) return
         waitingForStoragePermission = false
-        if (hasStorageAccess()) {
-            runDiagnostics()
-        } else {
-            status.text = "Storage access not granted."
-            runDiagnostics()
-        }
+        runDiagnostics()
     }
 
     private fun buildUi() {
@@ -94,7 +82,13 @@ class MainActivity : Activity() {
         status = TextView(this).apply {
             textSize = 28f
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 24)
+            setPadding(0, 0, 0, 16)
+        }
+
+        storageNotice = TextView(this).apply {
+            textSize = 14f
+            setPadding(16, 16, 16, 16)
+            setTextIsSelectable(true)
         }
 
         output = TextView(this).apply {
@@ -139,43 +133,35 @@ class MainActivity : Activity() {
         }
 
         root.addView(status)
-        root.addView(debugInfo)
-        root.addView(lmxHealthOutput)
+        root.addView(storageNotice)
         root.addView(uploadButton)
         root.addView(backendUrlButton)
         root.addView(storageButton)
         root.addView(launchButton)
+        root.addView(debugInfo)
+        root.addView(lmxHealthOutput)
         root.addView(scroll)
         setContentView(root)
         updateDebugInfo()
     }
 
-    private fun showStoragePermissionScreen() {
-        val message = """
-            LMX Playback Health Permission Required
+    private fun updateStorageNotice(storageAccess: Boolean) {
+        storageNotice.text = if (!storageAccess && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            """
+                Storage Access Required
 
-            LMX Playback Health requires storage access to read:
+                LMX Playback Health needs All Files Access to read LMX media, audit, and log files from this device. Without this access, Content Download Status, Playback Validation, and Log Validation will be unavailable.
 
-            * Downloaded media
-            * Playback audit records
-            * Application logs
-
-            This allows the platform to validate:
-
-            * Content download status
-            * Playback activity
-            * Device health
-            * Troubleshooting information
-        """.trimIndent()
-
-        status.text = "LMX Playback Health Permission Required"
-        lmxHealthOutput.text = message
-        output.text = "Tap Grant All Files Access, enable access for this app, then return here."
-        updateDebugInfo()
+                Tap Grant All Files Access above to enable the permission.
+            """.trimIndent()
+        } else {
+            ""
+        }
     }
 
     private fun runDiagnostics() {
         latestReport = collectReport()
+        updateStorageNotice(latestReport.optString("storage_access_status") == "GRANTED")
         val evaluation = evaluate(latestReport)
         latestReport.put("checks", evaluation.getJSONObject("checks"))
         latestReport.put("device_compatibility", evaluation)
@@ -231,42 +217,23 @@ class MainActivity : Activity() {
             .put("android_id", Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
 
         val lmxAppStatus = collectLmxAppStatus(packageInfo, launchIntent)
-        val contentDownloadStatus = if (storageAccess) {
-            collectContentDownloadStatus()
-        } else {
-            storageDeniedResult(
-                "Content Download",
-                "Storage access not granted. Cannot read LMX downloaded media."
-            )
-                .put("media_folder_path", mediaDirPath)
-                .put("media_folder_exists", JSONObject.NULL)
-                .put("downloaded_file_count", JSONObject.NULL)
+        report.put("lmx_app_status", lmxAppStatus)
+
+        if (!storageAccess) {
+            val unavailable = playbackHealthUnavailable()
+            return report
+                .put("overall_health_status", "UNKNOWN")
+                .put("overall_health", unavailable)
+                .put("lmx_playback_health_unavailable", unavailable)
+                .put("troubleshooting_recommendation", unavailable.getString("reason"))
         }
-        val playbackValidation = if (storageAccess) {
-            collectPlaybackValidation()
-        } else {
-            storageDeniedResult(
-                "Playback",
-                "Storage access not granted. Cannot read LMX playback audit records."
-            )
-                .put("audit_file_path", auditFilePath)
-                .put("audit_file_exists", JSONObject.NULL)
-                .put("total_playback_records", JSONObject.NULL)
-        }
-        val logValidation = if (storageAccess) {
-            collectLogValidation()
-        } else {
-            storageDeniedResult(
-                "Logs",
-                "Storage access not granted. Cannot read LMX application logs."
-            )
-                .put("log_folder_path", logDirPath)
-                .put("log_folder_exists", JSONObject.NULL)
-        }
+
+        val contentDownloadStatus = collectContentDownloadStatus()
+        val playbackValidation = collectPlaybackValidation()
+        val logValidation = collectLogValidation()
         val overallHealth = calculateOverallHealth(lmxAppStatus, contentDownloadStatus, playbackValidation, logValidation)
 
         return report
-            .put("lmx_app_status", lmxAppStatus)
             .put("content_download_status", contentDownloadStatus)
             .put("playback_validation", playbackValidation)
             .put("log_validation", logValidation)
@@ -614,18 +581,42 @@ class MainActivity : Activity() {
             .put("module", module)
     }
 
-    private fun storageDeniedResult(module: String, message: String): JSONObject {
-        return unknownResult(module, message)
-            .put("storage_access_status", "DENIED")
+    private fun playbackHealthUnavailable(): JSONObject {
+        val reason = "Storage access was not granted. Cannot read LMX media, audit, or log files."
+        return JSONObject()
+            .put("status", "UNKNOWN")
+            .put("reason", reason)
+            .put("message", reason)
     }
 
     private fun buildLmxHealthSummary(report: JSONObject): String {
         val lmx = report.getJSONObject("lmx_app_status")
+        val overall = report.getJSONObject("overall_health")
+        val storageAccessStatus = report.optString("storage_access_status", "UNKNOWN")
+
+        if (storageAccessStatus == "DENIED") {
+            val unavailable = report.optJSONObject("lmx_playback_health_unavailable") ?: playbackHealthUnavailable()
+            return """
+                LMX Playback Health
+
+                Storage Access: DENIED
+
+                LMX App: ${lmx.optString("status")} - ${lmx.optString("message")}
+                Package: ${lmx.optString("package_name")}
+                Version: ${lmx.optString("version_name", "Not detected")}
+
+                LMX Playback Health Unavailable
+                Status: ${unavailable.optString("status", "UNKNOWN")}
+                Message: ${unavailable.optString("reason")}
+
+                Overall Status: UNKNOWN
+                Final Recommendation: ${report.optString("final_recommendation", "Unable to Validate")}
+            """.trimIndent()
+        }
+
         val content = report.getJSONObject("content_download_status")
         val playback = report.getJSONObject("playback_validation")
         val logs = report.getJSONObject("log_validation")
-        val overall = report.getJSONObject("overall_health")
-        val storageAccessStatus = report.optString("storage_access_status", "UNKNOWN")
 
         return """
             LMX Playback Health
@@ -858,6 +849,7 @@ class MainActivity : Activity() {
             val packageUri = Uri.parse("package:$packageName")
             val appIntent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, packageUri)
             val fallbackIntent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+            val appDetailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
             try {
                 startActivity(appIntent)
             } catch (error: Exception) {
@@ -865,9 +857,14 @@ class MainActivity : Activity() {
                 try {
                     startActivity(fallbackIntent)
                 } catch (fallbackError: Exception) {
-                    waitingForStoragePermission = false
-                    Log.e(logTag, "Unable to open storage permission settings.", fallbackError)
-                    status.text = "Unable to open storage permission settings."
+                    Log.w(logTag, "General storage permission screen unavailable.", fallbackError)
+                    try {
+                        startActivity(appDetailsIntent)
+                    } catch (detailsError: Exception) {
+                        waitingForStoragePermission = false
+                        Log.e(logTag, "Unable to open storage permission settings.", detailsError)
+                        status.text = "Unable to open storage permission settings."
+                    }
                 }
             }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
