@@ -296,6 +296,19 @@ Content-Type: application/json
 }
 ```
 
+You can rename the selected device with the pencil icon beside `Device Name`, or call:
+
+```http
+PUT /api/devices/{device_id}/name
+Content-Type: application/json
+
+{
+  "device_name": "Google W2 Living Room"
+}
+```
+
+Custom device names are stored separately from uploaded report names, so future report uploads do not overwrite them. The dashboard, device history, PDF export, and DOCX export use the custom name when available.
+
 The dashboard also supports search by device name plus filters for status and Media Owner / Client.
 
 ## Timezone Handling

@@ -318,6 +318,7 @@ def _device_info_rows(context: dict[str, Any]) -> list[tuple[str, str]]:
     raw = context["raw"]
     if _platform(raw) == "windows":
         return [
+            ("Device Name", context["device_name"]),
             ("Computer Name", _value(raw, "computer_name", "device_name")),
             ("Manufacturer", _normalize_windows_hardware_name(_value(raw, "manufacturer"))),
             ("Model", _normalize_windows_hardware_name(_value(raw, "model"))),
@@ -338,7 +339,7 @@ def _device_info_rows(context: dict[str, Any]) -> list[tuple[str, str]]:
             ("Report Date", context["created_at"]),
         ]
     return [
-        ("Device Name", _value(raw, "device_name")),
+        ("Device Name", context["device_name"]),
         ("Manufacturer", _value(raw, "manufacturer")),
         ("Model", _value(raw, "model")),
         ("Android Version", _value(raw, "os_version")),

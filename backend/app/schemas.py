@@ -12,6 +12,7 @@ class DeviceOut(BaseModel):
     platform: str
     manufacturer: str
     model: str
+    custom_device_name: str | None = None
     media_owner: str | None = None
     os_version: str
     webview_version: str
@@ -48,6 +49,14 @@ class DeviceDetail(DeviceOut):
 
 class DeviceUpdate(BaseModel):
     media_owner: str | None = None
+
+
+class DeviceNameUpdate(BaseModel):
+    device_name: str
+
+
+class SuccessResponse(BaseModel):
+    success: bool
 
 
 def format_utc_timestamp(value: datetime) -> str:

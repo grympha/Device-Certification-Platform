@@ -11,6 +11,7 @@
 - Fixed Windows dashboard compatibility labels, Windows version display, custom-built PC manufacturer/model display, RAM recommendation wording, and Windows-specific LMX guidance.
 - Added a Media Owner / Client filter that narrows the Current Device dropdown and auto-selects the latest matching device.
 - Updated Device Information rows to use one consistent platform icon per report type.
+- Added dashboard device rename support with `PUT /api/devices/{device_id}/name`, persisted `custom_device_name`, and export/history display support.
 
 ## 0.2.0
 

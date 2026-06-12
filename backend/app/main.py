@@ -14,7 +14,7 @@ from .certification import build_device_report_summary, evaluate_report
 from .database import Base, engine, get_db
 from .models import Device, DiagnosticReport
 from .report_exports import build_docx_report, build_pdf_report
-from .schemas import DeviceDetail, DeviceOut, DeviceUpdate, ReportOut
+from .schemas import DeviceDetail, DeviceNameUpdate, DeviceOut, DeviceUpdate, ReportOut, SuccessResponse
 
 Base.metadata.create_all(bind=engine)
 
@@ -31,6 +31,8 @@ def _ensure_missing_columns() -> None:
         device_columns = _table_columns(inspector, "devices")
         if "media_owner" not in device_columns:
             connection.execute(text("ALTER TABLE devices ADD COLUMN media_owner TEXT"))
+        if "custom_device_name" not in device_columns:
+            connection.execute(text("ALTER TABLE devices ADD COLUMN custom_device_name TEXT"))
 
         report_columns = _table_columns(inspector, "diagnostic_reports")
         for column_name, column_type in REPORT_EXTRA_COLUMNS.items():
@@ -142,6 +144,21 @@ def update_device(device_id: int, payload: DeviceUpdate, db: Session = Depends(g
     db.commit()
     db.refresh(device)
     return device
+
+
+@app.put("/api/devices/{device_id}/name", response_model=SuccessResponse)
+def update_device_name(device_id: int, payload: DeviceNameUpdate, db: Session = Depends(get_db)) -> dict[str, bool]:
+    device = db.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    custom_name = payload.device_name.strip()
+    if not custom_name:
+        raise HTTPException(status_code=400, detail="Device name is required")
+
+    device.custom_device_name = custom_name
+    db.commit()
+    return {"success": True}
 
 
 @app.get("/api/reports/{report_id}", response_model=ReportOut)
@@ -264,6 +281,7 @@ def _export_context(report: DiagnosticReport) -> dict[str, Any]:
     return {
         "id": report.id,
         "raw": raw,
+        "device_name": _display_device_name(report.device, raw),
         "checks": raw.get("checks") if isinstance(raw.get("checks"), dict) else {},
         "created_at": _format_export_date(report.created_at),
         "final_status": report.final_status,
@@ -337,6 +355,7 @@ def _html_report(report: DiagnosticReport) -> str:
     manufacturer = _normalize_windows_hardware_name(raw.get("manufacturer", ""), raw)
     model = _normalize_windows_hardware_name(raw.get("model", ""), raw)
     os_version = _format_windows_version(raw) if str(raw.get("platform") or "").lower() == "windows" else raw.get("os_version", "")
+    device_name = _display_device_name(report.device, raw)
 
     return f"""
     <!doctype html>
@@ -358,7 +377,7 @@ def _html_report(report: DiagnosticReport) -> str:
         <table>
           <tr><th>Device Certification Result</th><td>{report.final_status}</td></tr>
           <tr><th>Final Recommendation</th><td>{final_recommendation}</td></tr>
-          <tr><th>Device</th><td>{raw.get("device_name", "")}</td></tr>
+          <tr><th>Device</th><td>{device_name}</td></tr>
           <tr><th>Media Owner / Client</th><td>{raw.get("media_owner") or raw.get("client_name") or "Unassigned"}</td></tr>
           <tr><th>Platform</th><td>{raw.get("platform", "")}</td></tr>
           <tr><th>Manufacturer</th><td>{manufacturer}</td></tr>
@@ -431,3 +450,14 @@ def _format_windows_version(raw: dict[str, Any]) -> str:
     if build >= 19042:
         return f"Windows 10 20H2 - Build {build}"
     return f"Windows 10 - Build {build}"
+
+
+def _display_device_name(device: Device, raw: dict[str, Any]) -> str:
+    return (
+        device.custom_device_name
+        or raw.get("device_name")
+        or raw.get("computer_name")
+        or raw.get("model")
+        or device.device_name
+        or "Unknown Device"
+    )

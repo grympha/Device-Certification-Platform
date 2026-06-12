@@ -144,6 +144,28 @@ Request body:
 
 Diagnostic uploads may also include either `media_owner` or `client_name`. If both are present, `media_owner` is used. If neither is present, the dashboard shows `Unassigned`.
 
+## PUT /api/devices/{id}/name
+
+Stores a custom display name for a device.
+
+Request body:
+
+```json
+{
+  "device_name": "Google W2 Living Room"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true
+}
+```
+
+The uploaded report's original `device_name` remains unchanged. If `custom_device_name` exists, the dashboard, device history, PDF export, and DOCX export display the custom name.
+
 ## GET /api/reports/{id}
 
 Shows one full diagnostic report with checks, failed checks, limitations, score, status, final recommendation, and Device Report Summary.

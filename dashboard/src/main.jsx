@@ -10,6 +10,7 @@ import {
   Info,
   Monitor,
   MoreVertical,
+  Pencil,
   Printer,
   RefreshCw,
   Save,
@@ -128,6 +129,9 @@ function App() {
   const [saveMessage, setSaveMessage] = useState("");
   const [mediaOwnerFilter, setMediaOwnerFilter] = useState(ALL_MEDIA_OWNERS);
   const [ownerAutoSelected, setOwnerAutoSelected] = useState(false);
+  const [editingDeviceName, setEditingDeviceName] = useState(false);
+  const [deviceNameDraft, setDeviceNameDraft] = useState("");
+  const [deviceNameMessage, setDeviceNameMessage] = useState("");
 
   const mediaOwnerOptions = useMemo(() => {
     const owners = devices.map((device) => deviceOwnerValue(device)).filter(Boolean);
@@ -167,13 +171,16 @@ function App() {
   async function loadDevice(deviceId) {
     setSelectedDeviceId(Number(deviceId));
     setEditingOwner(false);
+    setEditingDeviceName(false);
     setSaveMessage("");
+    setDeviceNameMessage("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/devices/${deviceId}`);
       if (!response.ok) throw new Error("Device unavailable");
       const detail = await response.json();
       setDeviceDetail(detail);
       setOwnerDraft(displayOwner(detail) === "Unassigned" ? "" : displayOwner(detail));
+      setDeviceNameDraft(displayDeviceName(detail, detail.reports?.[0]?.raw_json || {}));
       if (detail.reports?.[0]) {
         setReport(detail.reports[0]);
         await loadReport(detail.reports[0].id);
@@ -218,6 +225,35 @@ function App() {
     }
   }
 
+  async function saveDeviceName() {
+    const nextName = deviceNameDraft.trim();
+    if (!nextName) {
+      setDeviceNameMessage("Device name is required.");
+      return;
+    }
+    if (!apiOnline) {
+      setDeviceNameMessage("Backend required to save device name.");
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/devices/${deviceDetail.id}/name`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device_name: nextName })
+      });
+      if (!response.ok) throw new Error("Save failed");
+      await response.json();
+      setDeviceDetail((current) => ({ ...current, custom_device_name: nextName }));
+      setDevices((current) => current.map((device) => (
+        device.id === deviceDetail.id ? { ...device, custom_device_name: nextName } : device
+      )));
+      setEditingDeviceName(false);
+      setDeviceNameMessage("");
+    } catch (error) {
+      setDeviceNameMessage(error.message || "Save failed.");
+    }
+  }
+
   useEffect(() => {
     refresh();
   }, []);
@@ -240,7 +276,9 @@ function App() {
     if (!filteredDevices.length) {
       setSelectedDeviceId(null);
       setEditingOwner(false);
+      setEditingDeviceName(false);
       setSaveMessage("");
+      setDeviceNameMessage("");
     }
   }, [selectedDevice?.id, deviceDetail?.id, filteredDevices.length]);
 
@@ -248,7 +286,9 @@ function App() {
     setOwnerAutoSelected(true);
     setMediaOwnerFilter(value);
     setEditingOwner(false);
+    setEditingDeviceName(false);
     setSaveMessage("");
+    setDeviceNameMessage("");
     const nextDevices = value === ALL_MEDIA_OWNERS
       ? sortedDevices
       : sortedDevices.filter((device) => deviceOwnerValue(device) === value);
@@ -328,6 +368,11 @@ function App() {
               editingOwner={editingOwner}
               ownerDraft={ownerDraft}
               saveMessage={saveMessage}
+              onEditDeviceName={() => {
+                setDeviceNameDraft(displayDeviceName(deviceDetail, report.raw_json || {}));
+                setDeviceNameMessage("");
+                setEditingDeviceName(true);
+              }}
               onEdit={() => {
                 setOwnerDraft(displayOwner(deviceDetail) === "Unassigned" ? "" : displayOwner(deviceDetail));
                 setEditingOwner(true);
@@ -343,6 +388,19 @@ function App() {
           <DeploymentReadiness report={report} />
           <DeviceHistory device={deviceDetail} report={report} onSelectReport={loadReport} />
         </>
+      )}
+
+      {editingDeviceName && (
+        <DeviceNameModal
+          value={deviceNameDraft}
+          message={deviceNameMessage}
+          onChange={setDeviceNameDraft}
+          onSave={saveDeviceName}
+          onCancel={() => {
+            setEditingDeviceName(false);
+            setDeviceNameMessage("");
+          }}
+        />
       )}
 
       <footer className="dashboard-footer">
@@ -425,7 +483,7 @@ function SummaryCard({ icon, label, value, helper, tone = "", wide = false, chil
   );
 }
 
-function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessage, onEdit, onCancel, onOwnerChange, onSave }) {
+function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessage, onEditDeviceName, onEdit, onCancel, onOwnerChange, onSave }) {
   const raw = report.raw_json || {};
   const rows = deviceInfoRows(raw, device, report);
   const platform = raw.platform || device.platform;
@@ -456,7 +514,13 @@ function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessa
       {saveMessage && <p className="save-message">{saveMessage}</p>}
       <div className="info-grid">
         {rows.map(([label, value]) => (
-          <InfoItem key={label} label={label} value={value || "-"} platform={platform} />
+          <InfoItem
+            key={label}
+            label={label}
+            value={value || "-"}
+            platform={platform}
+            onEdit={label === "Device Name" ? onEditDeviceName : undefined}
+          />
         ))}
       </div>
     </section>
@@ -519,6 +583,7 @@ function DeploymentReadiness({ report }) {
 
 function DeviceHistory({ device, report, onSelectReport }) {
   const reports = device.reports?.length ? device.reports : [report];
+  const name = displayDeviceName(device, report.raw_json || {});
   return (
     <section className="section-card history-card">
       <SectionHeader title="Device History" />
@@ -540,7 +605,7 @@ function DeviceHistory({ device, report, onSelectReport }) {
                 <td>{formatMalaysiaTime(item.created_at)}</td>
                 <td>
                   <div className="device-cell">
-                    <span>{device.device_name}</span>
+                    <span>{name}</span>
                     <PlatformBadge platform={device.platform || report.raw_json?.platform} />
                   </div>
                 </td>
@@ -584,6 +649,25 @@ function ExportActions({ reportId, iconOnly = false }) {
   );
 }
 
+function DeviceNameModal({ value, message, onChange, onSave, onCancel }) {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="device-name-modal-title">
+        <h2 id="device-name-modal-title">Edit Device Name</h2>
+        <label>
+          <span>Device Name</span>
+          <input value={value} onChange={(event) => onChange(event.target.value)} autoFocus />
+        </label>
+        {message && <p className="save-message">{message}</p>}
+        <div className="modal-actions">
+          <button onClick={onSave}>Save</button>
+          <button className="secondary" onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SectionHeader({ title, children }) {
   return (
     <div className="section-header">
@@ -595,13 +679,20 @@ function SectionHeader({ title, children }) {
   );
 }
 
-function InfoItem({ label, value, platform }) {
+function InfoItem({ label, value, platform, onEdit }) {
   const Icon = isWindowsPlatform(platform) ? Monitor : Smartphone;
   return (
     <div className="info-item">
       <Icon size={15} />
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong>
+        {value}
+        {onEdit && (
+          <button className="ghost-icon inline-edit-icon" onClick={onEdit} title="Edit Device Name" aria-label="Edit Device Name">
+            <Pencil size={14} />
+          </button>
+        )}
+      </strong>
     </div>
   );
 }
@@ -698,6 +789,7 @@ function deviceInfoRows(raw, device, report) {
     const manufacturer = normalizeWindowsHardwareName(raw.manufacturer || device.manufacturer);
     const model = normalizeWindowsHardwareName(raw.model || device.model);
     return [
+      ["Device Name", displayDeviceName(device, raw)],
       ["Computer Name", raw.computer_name || raw.device_name || device.device_name],
       ["Manufacturer", manufacturer],
       ["Model", model],
@@ -717,7 +809,7 @@ function deviceInfoRows(raw, device, report) {
     ];
   }
   return [
-    ["Device Name", raw.device_name || device.device_name],
+    ["Device Name", displayDeviceName(device, raw)],
     ["Manufacturer", raw.manufacturer || device.manufacturer],
     ["Model", raw.model || device.model],
     ["Android Version", raw.os_version || device.os_version],
@@ -778,7 +870,11 @@ function deviceOwnerValue(device = {}) {
 
 function deviceLabel(device = {}) {
   const raw = device.reports?.[0]?.raw_json || {};
-  return raw.device_name || raw.computer_name || device.device_name || raw.model || device.model || "Unknown Device";
+  return displayDeviceName(device, raw);
+}
+
+function displayDeviceName(device = {}, raw = {}) {
+  return device.custom_device_name || raw.device_name || raw.computer_name || device.device_name || raw.model || device.model || "Unknown Device";
 }
 
 function sortDevicesByLatest(items = []) {
