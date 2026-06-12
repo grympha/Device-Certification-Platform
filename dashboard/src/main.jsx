@@ -498,7 +498,7 @@ function SummaryCard({ icon, label, value, helper, tone = "", wide = false, chil
 
 function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessage, onEditDeviceName, onEdit, onCancel, onOwnerChange, onSave }) {
   const raw = report.raw_json || {};
-  const groups = deviceInfoGroups(raw, device, report);
+  const rows = deviceInfoRows(raw, device, report);
   const platform = raw.platform || device.platform;
 
   return (
@@ -525,13 +525,14 @@ function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessa
         )}
       </div>
       {saveMessage && <p className="save-message">{saveMessage}</p>}
-      <div className="info-group-grid">
-        {groups.map((group) => (
-          <InfoGroup
-            key={group.title}
-            group={group}
+      <div className="info-grid">
+        {rows.map(([label, value]) => (
+          <InfoItem
+            key={label}
+            label={label}
+            value={value || "-"}
             platform={platform}
-            onEditDeviceName={onEditDeviceName}
+            onEdit={label === "Device Name" ? onEditDeviceName : undefined}
           />
         ))}
       </div>
@@ -689,23 +690,6 @@ function SectionHeader({ title, children }) {
   );
 }
 
-function InfoGroup({ group, platform, onEditDeviceName }) {
-  return (
-    <div className="info-group">
-      <h3>{group.title}</h3>
-      {group.rows.map(([label, value]) => (
-        <InfoItem
-          key={label}
-          label={label}
-          value={value || "-"}
-          platform={platform}
-          onEdit={label === "Device Name" ? onEditDeviceName : undefined}
-        />
-      ))}
-    </div>
-  );
-}
-
 function InfoItem({ label, value, platform, onEdit }) {
   const Icon = isWindowsPlatform(platform) ? Monitor : Smartphone;
   return (
@@ -826,84 +810,45 @@ const deploymentLabels = {
   windows_update_status: "Windows Update Status"
 };
 
-function deviceInfoGroups(raw, device, report) {
+function deviceInfoRows(raw, device, report) {
   if (isWindows(raw)) {
     const manufacturer = normalizeWindowsHardwareName(raw.manufacturer || device.manufacturer);
     const model = normalizeWindowsHardwareName(raw.model || device.model);
     return [
-      {
-        title: "System",
-        rows: [
-          ["Device Name", displayDeviceName(device, raw)],
-          ["Computer Name", raw.computer_name || raw.device_name || device.device_name],
-          ["Manufacturer", manufacturer],
-          ["Model", model],
-          ["OS Version", formatWindowsVersion(raw, device)],
-          ["CPU", raw.cpu],
-          ["RAM", gb(raw.ram_total_gb)],
-          ["Storage", gb(raw.storage_available_gb)]
-        ]
-      },
-      {
-        title: "Display",
-        rows: [
-          ["GPU", raw.gpu],
-          ["Screen Resolution", raw.screen_resolution]
-        ]
-      },
-      {
-        title: "LMX",
-        rows: [
-          ["Platform", raw.platform || device.platform],
-          ["LMX Version", raw.lmx_app_version || device.lmx_app_version]
-        ]
-      },
-      {
-        title: "Network",
-        rows: [
-          ["IP Address", raw.ip_address],
-          ["Timezone", raw.timezone],
-          ["Report Date", formatMalaysiaTime(report.created_at)]
-        ]
-      }
+      ["Device Name", displayDeviceName(device, raw)],
+      ["Manufacturer", manufacturer],
+      ["Model", model],
+      ["Platform", raw.platform || device.platform],
+      ["Windows Version", formatWindowsVersion(raw, device)],
+      ["CPU", raw.cpu],
+      ["CPU Architecture", raw.cpu_architecture],
+      ["RAM", gb(raw.ram_total_gb)],
+      ["Available Storage", gb(raw.storage_available_gb)],
+      ["GPU", raw.gpu],
+      ["Screen Resolution", raw.screen_resolution],
+      ["LMX Version", raw.lmx_app_version || device.lmx_app_version],
+      ["IP Address", raw.ip_address],
+      ["Timezone", raw.timezone],
+      ["Report Date", formatMalaysiaTime(report.created_at)]
     ];
   }
   return [
-    {
-      title: "System",
-      rows: [
-        ["Device Name", displayDeviceName(device, raw)],
-        ["Manufacturer", raw.manufacturer || device.manufacturer],
-        ["Model", raw.model || device.model],
-        ["OS Version", raw.os_version || device.os_version],
-        ["CPU", raw.cpu_architecture],
-        ["RAM", gb(raw.ram_total_gb)],
-        ["Storage", gb(raw.storage_available_gb)]
-      ]
-    },
-    {
-      title: "Display",
-      rows: [
-        ["GPU", raw.gpu || "-"],
-        ["Screen Resolution", raw.screen_resolution],
-        ["WebView Version", raw.webview_version || device.webview_version]
-      ]
-    },
-    {
-      title: "LMX",
-      rows: [
-        ["Platform", raw.platform || device.platform],
-        ["LMX Version", raw.lmx_app_version || device.lmx_app_version]
-      ]
-    },
-    {
-      title: "Network",
-      rows: [
-        ["IP Address", raw.ip_address],
-        ["Timezone", raw.timezone],
-        ["Report Date", formatMalaysiaTime(report.created_at)]
-      ]
-    }
+    ["Device Name", displayDeviceName(device, raw)],
+    ["Manufacturer", raw.manufacturer || device.manufacturer],
+    ["Model", raw.model || device.model],
+    ["Platform", raw.platform || device.platform],
+    ["Android Version", raw.os_version || device.os_version],
+    ["CPU", raw.cpu || raw.cpu_architecture],
+    ["CPU Architecture", raw.cpu_architecture],
+    ["RAM", gb(raw.ram_total_gb)],
+    ["Available Storage", gb(raw.storage_available_gb)],
+    ["GPU", raw.gpu],
+    ["Screen Resolution", raw.screen_resolution],
+    ["WebView Version", raw.webview_version || device.webview_version],
+    ["LMX Version", raw.lmx_app_version || device.lmx_app_version],
+    ["IP Address", raw.ip_address],
+    ["Timezone", raw.timezone],
+    ["Report Date", formatMalaysiaTime(report.created_at)]
   ];
 }
 

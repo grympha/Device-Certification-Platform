@@ -526,23 +526,6 @@ input {
   gap: 0 22px;
 }
 
-.info-group-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 20px;
-}
-
-.info-group {
-  min-width: 0;
-}
-
-.info-group h3 {
-  margin: 8px 0 4px;
-  color: var(--blue);
-  font-size: 12px;
-  text-transform: uppercase;
-}
-
 .info-item {
   display: grid;
   grid-template-columns: 18px minmax(130px, 1fr) minmax(0, 1fr);
@@ -870,8 +853,7 @@ li {
     grid-template-columns: 1fr;
   }
 
-  .info-grid,
-  .info-group-grid {
+  .info-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -891,7 +873,6 @@ li {
   .header-actions,
   .owner-row,
   .info-grid,
-  .info-group-grid,
   .summary-grid {
     grid-template-columns: 1fr;
   }
