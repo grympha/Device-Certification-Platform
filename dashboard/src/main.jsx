@@ -9,7 +9,6 @@ import {
   FileText,
   Info,
   Monitor,
-  MoreVertical,
   Pencil,
   Printer,
   RefreshCw,
@@ -359,6 +358,7 @@ function App() {
         </section>
       ) : (
         <>
+          <QuickStatusBanner report={report} />
           <ExecutiveSummary report={report} apiOnline={apiOnline} />
           <CertificationConclusion report={report} />
           <div className="split-grid split-grid-halves">
@@ -418,9 +418,12 @@ function ExecutiveSummary({ report, apiOnline }) {
   return (
     <section className="section-card executive-summary">
       <SectionHeader title="Executive Summary">
-        <div className="backend-status">
-          <span className={apiOnline ? "dot online" : "dot"} />
-          {apiOnline ? "Backend Connected" : "Showing Sample Data"}
+        <div className="executive-actions">
+          <div className="backend-status">
+            <span className={apiOnline ? "dot online" : "dot"} />
+            {apiOnline ? "Backend Connected" : "Showing Sample Data"}
+          </div>
+          <ExportActions reportId={report.id} iconOnly />
         </div>
       </SectionHeader>
       <div className="executive-grid">
@@ -439,7 +442,7 @@ function ExecutiveSummary({ report, apiOnline }) {
         />
         <SummaryCard
           icon={<ClipboardCheck size={24} />}
-          label="LMX Version Readiness"
+          label={isWindows(raw) ? "LMX Version Readiness" : "Programmatic/VAST Readiness"}
           value={checks[primaryReadinessKey]?.status || "UNKNOWN"}
           tone={statusTone(checks[primaryReadinessKey]?.status)}
         />
@@ -460,11 +463,21 @@ function CertificationConclusion({ report }) {
   return (
     <section className={`section-card conclusion-card ${statusTone(report.final_status)}`}>
       <div>
-        <span>Conclusion</span>
         <strong>{finalRecommendation}</strong>
         <p>{conclusionText(report.final_status)}</p>
       </div>
-      <ExportActions reportId={report.id} iconOnly />
+    </section>
+  );
+}
+
+function QuickStatusBanner({ report }) {
+  const tone = statusTone(report.final_status);
+  const Icon = tone === "pass" ? CheckCircle2 : tone === "warning" ? TriangleAlert : XCircle;
+  return (
+    <section className={`status-banner ${tone}`}>
+      <Icon size={22} />
+      <strong>{bannerTitle(report.final_status)}</strong>
+      <span>{bannerSummary(report)}</span>
     </section>
   );
 }
@@ -485,7 +498,7 @@ function SummaryCard({ icon, label, value, helper, tone = "", wide = false, chil
 
 function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessage, onEditDeviceName, onEdit, onCancel, onOwnerChange, onSave }) {
   const raw = report.raw_json || {};
-  const rows = deviceInfoRows(raw, device, report);
+  const groups = deviceInfoGroups(raw, device, report);
   const platform = raw.platform || device.platform;
 
   return (
@@ -512,14 +525,13 @@ function DeviceInformation({ device, report, editingOwner, ownerDraft, saveMessa
         )}
       </div>
       {saveMessage && <p className="save-message">{saveMessage}</p>}
-      <div className="info-grid">
-        {rows.map(([label, value]) => (
-          <InfoItem
-            key={label}
-            label={label}
-            value={value || "-"}
+      <div className="info-group-grid">
+        {groups.map((group) => (
+          <InfoGroup
+            key={group.title}
+            group={group}
             platform={platform}
-            onEdit={label === "Device Name" ? onEditDeviceName : undefined}
+            onEditDeviceName={onEditDeviceName}
           />
         ))}
       </div>
@@ -559,7 +571,7 @@ function DeviceReportSummary({ report }) {
         <SummaryList title="Strengths" items={displaySummary.good_points} tone="pass" />
         <SummaryList title="Warnings" items={displaySummary.warning_points} tone="warning" />
         <SummaryList title="Problems" items={displaySummary.failed_points} tone="fail" />
-        <SummaryList title="Recommended Actions" items={displaySummary.recommended_actions} tone="neutral" />
+        <PriorityActions items={displaySummary.recommended_actions} />
       </div>
     </section>
   );
@@ -582,7 +594,7 @@ function DeploymentReadiness({ report }) {
 }
 
 function DeviceHistory({ device, report, onSelectReport }) {
-  const reports = device.reports?.length ? device.reports : [report];
+  const reports = (device.reports?.length ? device.reports : [report]).slice(0, 20);
   const name = displayDeviceName(device, report.raw_json || {});
   return (
     <section className="section-card history-card">
@@ -593,8 +605,9 @@ function DeviceHistory({ device, report, onSelectReport }) {
             <tr>
               <th>Date</th>
               <th>Device</th>
-              <th>Result</th>
+              <th>Platform</th>
               <th>Score</th>
+              <th>Certification Result</th>
               <th>Recommendation</th>
               <th>Action</th>
             </tr>
@@ -606,19 +619,16 @@ function DeviceHistory({ device, report, onSelectReport }) {
                 <td>
                   <div className="device-cell">
                     <span>{name}</span>
-                    <PlatformBadge platform={device.platform || report.raw_json?.platform} />
                   </div>
                 </td>
-                <td><StatusPill status={item.final_status} /></td>
+                <td><PlatformBadge platform={item.raw_json?.platform || device.platform || report.raw_json?.platform} /></td>
                 <td>{item.score} / 100</td>
+                <td><StatusPill status={item.final_status} /></td>
                 <td>{item.final_recommendation || report.final_recommendation || "-"}</td>
                 <td className="table-actions">
                   <button className="table-button" onClick={() => onSelectReport(item.id)}>
                     <Eye size={15} />
                     View Report
-                  </button>
-                  <button className="ghost-icon" title="More actions">
-                    <MoreVertical size={16} />
                   </button>
                 </td>
               </tr>
@@ -679,6 +689,23 @@ function SectionHeader({ title, children }) {
   );
 }
 
+function InfoGroup({ group, platform, onEditDeviceName }) {
+  return (
+    <div className="info-group">
+      <h3>{group.title}</h3>
+      {group.rows.map(([label, value]) => (
+        <InfoItem
+          key={label}
+          label={label}
+          value={value || "-"}
+          platform={platform}
+          onEdit={label === "Device Name" ? onEditDeviceName : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
 function InfoItem({ label, value, platform, onEdit }) {
   const Icon = isWindowsPlatform(platform) ? Monitor : Smartphone;
   return (
@@ -724,6 +751,20 @@ function SummaryList({ title, items = [], tone = "", wide = false }) {
   );
 }
 
+function PriorityActions({ items = [] }) {
+  return (
+    <article className="summary-list neutral priority-actions">
+      <h3>Recommended Actions</h3>
+      {prioritizeActions(items).map((group) => (
+        <div className="priority-group" key={group.title}>
+          <strong>{group.title}</strong>
+          <ListOrNone items={group.items} numbered />
+        </div>
+      ))}
+    </article>
+  );
+}
+
 function StatusPill({ status }) {
   const key = String(status || "UNKNOWN").toLowerCase().replaceAll(" ", "-");
   return <span className={`pill ${key}`}>{status || "UNKNOWN"}</span>;
@@ -737,9 +778,10 @@ function StatusIcon({ status }) {
   return <Info className="status-icon neutral" size={17} />;
 }
 
-function ListOrNone({ items }) {
+function ListOrNone({ items, numbered = false }) {
   if (!items?.length) return <p className="empty-text">None</p>;
-  return <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>;
+  const Tag = numbered ? "ol" : "ul";
+  return <Tag>{items.map((item) => <li key={item}>{item}</li>)}</Tag>;
 }
 
 const deviceCompatibilityKeys = ["android_version", "ram", "storage", "webview", "network", "time_timezone"];
@@ -784,42 +826,84 @@ const deploymentLabels = {
   windows_update_status: "Windows Update Status"
 };
 
-function deviceInfoRows(raw, device, report) {
+function deviceInfoGroups(raw, device, report) {
   if (isWindows(raw)) {
     const manufacturer = normalizeWindowsHardwareName(raw.manufacturer || device.manufacturer);
     const model = normalizeWindowsHardwareName(raw.model || device.model);
     return [
-      ["Device Name", displayDeviceName(device, raw)],
-      ["Computer Name", raw.computer_name || raw.device_name || device.device_name],
-      ["Manufacturer", manufacturer],
-      ["Model", model],
-      ["Windows Edition", raw.windows_edition],
-      ["Windows Version", formatWindowsVersion(raw, device)],
-      ["System Type", raw.system_type],
-      ["CPU", raw.cpu],
-      ["CPU Architecture", raw.cpu_architecture],
-      ["RAM", gb(raw.ram_total_gb)],
-      ["Storage Available", gb(raw.storage_available_gb)],
-      ["GPU", raw.gpu],
-      ["Screen Resolution", raw.screen_resolution],
-      ["IP Address", raw.ip_address],
-      ["Timezone", raw.timezone],
-      ["LMX Version", raw.lmx_app_version || device.lmx_app_version],
-      ["Report Date", formatMalaysiaTime(report.created_at)]
+      {
+        title: "System",
+        rows: [
+          ["Device Name", displayDeviceName(device, raw)],
+          ["Computer Name", raw.computer_name || raw.device_name || device.device_name],
+          ["Manufacturer", manufacturer],
+          ["Model", model],
+          ["OS Version", formatWindowsVersion(raw, device)],
+          ["CPU", raw.cpu],
+          ["RAM", gb(raw.ram_total_gb)],
+          ["Storage", gb(raw.storage_available_gb)]
+        ]
+      },
+      {
+        title: "Display",
+        rows: [
+          ["GPU", raw.gpu],
+          ["Screen Resolution", raw.screen_resolution]
+        ]
+      },
+      {
+        title: "LMX",
+        rows: [
+          ["Platform", raw.platform || device.platform],
+          ["LMX Version", raw.lmx_app_version || device.lmx_app_version]
+        ]
+      },
+      {
+        title: "Network",
+        rows: [
+          ["IP Address", raw.ip_address],
+          ["Timezone", raw.timezone],
+          ["Report Date", formatMalaysiaTime(report.created_at)]
+        ]
+      }
     ];
   }
   return [
-    ["Device Name", displayDeviceName(device, raw)],
-    ["Manufacturer", raw.manufacturer || device.manufacturer],
-    ["Model", raw.model || device.model],
-    ["Android Version", raw.os_version || device.os_version],
-    ["CPU Architecture", raw.cpu_architecture],
-    ["RAM", gb(raw.ram_total_gb)],
-    ["Available Storage", gb(raw.storage_available_gb)],
-    ["Screen Resolution", raw.screen_resolution],
-    ["WebView Version", raw.webview_version || device.webview_version],
-    ["LMX Version", raw.lmx_app_version || device.lmx_app_version],
-    ["Report Date", formatMalaysiaTime(report.created_at)]
+    {
+      title: "System",
+      rows: [
+        ["Device Name", displayDeviceName(device, raw)],
+        ["Manufacturer", raw.manufacturer || device.manufacturer],
+        ["Model", raw.model || device.model],
+        ["OS Version", raw.os_version || device.os_version],
+        ["CPU", raw.cpu_architecture],
+        ["RAM", gb(raw.ram_total_gb)],
+        ["Storage", gb(raw.storage_available_gb)]
+      ]
+    },
+    {
+      title: "Display",
+      rows: [
+        ["GPU", raw.gpu || "-"],
+        ["Screen Resolution", raw.screen_resolution],
+        ["WebView Version", raw.webview_version || device.webview_version]
+      ]
+    },
+    {
+      title: "LMX",
+      rows: [
+        ["Platform", raw.platform || device.platform],
+        ["LMX Version", raw.lmx_app_version || device.lmx_app_version]
+      ]
+    },
+    {
+      title: "Network",
+      rows: [
+        ["IP Address", raw.ip_address],
+        ["Timezone", raw.timezone],
+        ["Report Date", formatMalaysiaTime(report.created_at)]
+      ]
+    }
   ];
 }
 
@@ -892,14 +976,14 @@ function scoreLabel(report, raw = {}) {
 }
 
 function scoreLabelFromValue(score) {
-  if (score >= 95) return "Excellent";
+  if (score >= 90) return "Excellent";
   if (score >= 80) return "Good";
   if (score >= 60) return "Limited";
   return "Not Recommended";
 }
 
 function scoreTone(score) {
-  if (score >= 95) return "pass";
+  if (score >= 90) return "pass";
   if (score >= 80) return "good";
   if (score >= 60) return "warning";
   return "fail";
@@ -911,6 +995,28 @@ function statusTone(status = "") {
   if (value.includes("limitation") || value === "warning") return "warning";
   if (value.includes("not recommended") || value === "fail") return "fail";
   return "neutral";
+}
+
+function bannerTitle(status) {
+  if (status === "Approved") return "CERTIFIED FOR LMX CONTENT";
+  if (status === "Approved with Limitation") return "CERTIFIED WITH LIMITATION";
+  return "NOT RECOMMENDED";
+}
+
+function bannerSummary(report) {
+  if (report.final_status === "Approved") {
+    return "Device meets all certification requirements and is ready for deployment.";
+  }
+  if (report.final_status === "Approved with Limitation") {
+    return "Device meets certification requirements but has warnings that should be reviewed.";
+  }
+  const raw = report.raw_json || {};
+  const checks = raw.checks || {};
+  const failed = Object.values(checks)
+    .filter((check) => check?.status === "FAIL")
+    .map((check) => check.message)
+    .slice(0, 3);
+  return failed.length ? failed.join(" ") : "Device does not meet minimum certification requirements.";
 }
 
 function conclusionText(status) {
@@ -1005,6 +1111,26 @@ function ramRecommendation(check = {}) {
   if (check.status === "FAIL") return "Use a device with at least 4GB RAM.";
   if (check.status === "WARNING") return "Use 8GB RAM or above for optimal LMX Content performance.";
   return null;
+}
+
+function prioritizeActions(items = []) {
+  const groups = {
+    high: { title: "High Priority", items: [] },
+    recommended: { title: "Recommended", items: [] },
+    optional: { title: "Optional", items: [] }
+  };
+  items.forEach((item) => {
+    const text = String(item || "");
+    const lower = text.toLowerCase();
+    if (lower.includes("install lmx") || lower.includes("reinstall") || lower.includes("launch") || lower.includes("internet") || lower.includes("time") || lower.includes("storage")) {
+      groups.high.items.push(text);
+    } else if (lower.includes("update") || lower.includes("upgrade") || lower.includes("use windows") || lower.includes("use a device")) {
+      groups.recommended.items.push(text);
+    } else {
+      groups.optional.items.push(text);
+    }
+  });
+  return Object.values(groups);
 }
 
 function sanitizeSummaryForPlatform(summary = {}, raw = {}) {

@@ -110,15 +110,28 @@ Windows scoring is normalized to a 100-point result while preserving the relativ
 
 Score labels:
 
-- `95-100`: Excellent
-- `80-94`: Good
+- `90-100`: Excellent
+- `80-89`: Good
 - `60-79`: Limited
 - Below `60`: Not Recommended
+
+Check status values:
+
+- `PASS`: requirement is met.
+- `WARNING`: requirement is usable with limitation.
+- `FAIL`: requirement is not met.
+- `NOT VERIFIED`: dependent check was skipped because a required earlier condition failed.
 
 Pull To Content Readiness:
 
 - Android: `PASS` when LMX Version is `2.9.1.2 native` or newer, otherwise `FAIL`.
 - Windows: `PASS` when LMX Version is `1.0.34` or newer, otherwise `FAIL`.
+
+Dependency rules:
+
+- If LMX Installed is `FAIL`, LMX Launch, Programmatic/VAST, and Pull To Content are returned as `NOT VERIFIED`.
+- If LMX Launch is `FAIL`, Programmatic/VAST and Pull To Content are returned as `NOT VERIFIED`.
+- If LMX Version cannot be detected, Pull To Content is returned as `NOT VERIFIED`.
 
 The platform does not check device pairing, inventory mapping, playback, CMS connectivity, or another app's local media/log folders.
 

@@ -12,6 +12,8 @@
 - Added a Media Owner / Client filter that narrows the Current Device dropdown and auto-selects the latest matching device.
 - Updated Device Information rows to use one consistent platform icon per report type.
 - Added dashboard device rename support with `PUT /api/devices/{device_id}/name`, persisted `custom_device_name`, and export/history display support.
+- Refined dashboard layout with a quick status banner, compact conclusion card, Executive Summary export actions, grouped Device Information, prioritized recommendations, latest-20 Device History, and score color bands.
+- Added `NOT VERIFIED` certification dependency handling for LMX launch, Programmatic/VAST, and Pull To Content readiness when prerequisite LMX checks fail.
 
 ## 0.2.0
 

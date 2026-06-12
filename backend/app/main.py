@@ -301,7 +301,7 @@ def _format_export_date(value: datetime) -> str:
 
 
 def _score_label(score: int) -> str:
-    if score >= 95:
+    if score >= 90:
         return "Excellent"
     if score >= 80:
         return "Good"

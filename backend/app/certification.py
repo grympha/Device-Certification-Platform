@@ -8,6 +8,7 @@ from typing import Any
 PASS = "PASS"
 WARNING = "WARNING"
 FAIL = "FAIL"
+NOT_VERIFIED = "NOT VERIFIED"
 
 ANDROID_SCORE_WEIGHTS = {
     "android_version": 15,
@@ -100,6 +101,7 @@ def _evaluate_android_report(report: dict[str, Any]) -> dict[str, Any]:
         _programmatic_check(report),
         _pull_to_content_check(report),
     ]
+    checks = _apply_lmx_dependency_rules(checks)
     return _build_evaluation(checks, ANDROID_SCORE_WEIGHTS)
 
 
@@ -117,6 +119,7 @@ def _evaluate_windows_report(report: dict[str, Any]) -> dict[str, Any]:
         _lmx_launch_check(report),
         _pull_to_content_check(report),
     ]
+    checks = _apply_lmx_dependency_rules(checks)
     evaluation = _build_evaluation(checks, WINDOWS_SCORE_WEIGHTS)
     evaluation["deployment_readiness"] = _deployment_readiness(report)
     return evaluation
@@ -168,7 +171,7 @@ def _certification_score(checks: list[CheckResult], score_weights: dict[str, int
 
 
 def _score_label(score: int) -> str:
-    if score >= 95:
+    if score >= 90:
         return "Excellent"
     if score >= 80:
         return "Good"
@@ -451,6 +454,8 @@ def _programmatic_check(report: dict[str, Any]) -> CheckResult:
 def _pull_to_content_check(report: dict[str, Any]) -> CheckResult:
     platform = str(report.get("platform") or "Android").lower()
     version = report.get("lmx_app_version") or report.get("lmx_version")
+    if not version:
+        return CheckResult("pull_to_content", NOT_VERIFIED, "Pull To Content readiness was not verified because LMX version could not be detected.")
     if platform == "windows":
         if _version_at_least(version, "1.0.34"):
             return CheckResult("pull_to_content", PASS, "Windows LMX version supports Pull To Content.")
@@ -458,6 +463,33 @@ def _pull_to_content_check(report: dict[str, Any]) -> CheckResult:
     if _version_at_least(version, "2.9.1.2"):
         return CheckResult("pull_to_content", PASS, "Android LMX version supports Pull To Content.")
     return CheckResult("pull_to_content", FAIL, "Android LMX version is below 2.9.1.2 native.")
+
+
+def _apply_lmx_dependency_rules(checks: list[CheckResult]) -> list[CheckResult]:
+    by_name = {check.name: check for check in checks}
+    if by_name.get("lmx_app_installed") and by_name["lmx_app_installed"].status == FAIL:
+        return [
+            _not_verified(check, "LMX Content is not installed.")
+            if check.name in {"lmx_app_launch", "programmatic_vast", "pull_to_content"} else check
+            for check in checks
+        ]
+    if by_name.get("lmx_app_launch") and by_name["lmx_app_launch"].status == FAIL:
+        return [
+            _not_verified(check, "LMX Content could not be launched.")
+            if check.name in {"programmatic_vast", "pull_to_content"} else check
+            for check in checks
+        ]
+    if by_name.get("lmx_version") and by_name["lmx_version"].status in {FAIL, WARNING}:
+        return [
+            _not_verified(check, "LMX Content version could not be detected.")
+            if check.name == "pull_to_content" else check
+            for check in checks
+        ]
+    return checks
+
+
+def _not_verified(check: CheckResult, reason: str) -> CheckResult:
+    return CheckResult(check.name, NOT_VERIFIED, f"{check.message} Not verified: {reason}")
 
 
 def _deployment_readiness(report: dict[str, Any]) -> dict[str, dict[str, str]]:

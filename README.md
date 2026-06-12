@@ -194,6 +194,32 @@ Report detail responses include:
 
 The summary is generated from stored check results, so existing reports remain export-compatible.
 
+## Dashboard Certification View
+
+The dashboard shows a quick status banner, compact Executive Summary, compact Certification Conclusion, grouped Device Information, Device Compatibility, Device Report Summary, and the latest 20 Device History rows.
+
+Export actions for PDF, DOCX, and print are available as icon buttons in the Executive Summary.
+
+Score categories:
+
+- `90-100`: Excellent
+- `80-89`: Good
+- `60-79`: Limited
+- Below `60`: Not Recommended
+
+Check badges use:
+
+- `PASS`: green
+- `WARNING`: amber
+- `FAIL`: red
+- `NOT VERIFIED`: grey
+
+LMX readiness dependency rules:
+
+- If LMX Installed is `FAIL`, LMX Launch, Programmatic/VAST, and Pull To Content are `NOT VERIFIED`.
+- If LMX Launch is `FAIL`, Programmatic/VAST and Pull To Content are `NOT VERIFIED`.
+- If LMX Version cannot be detected, Pull To Content is `NOT VERIFIED`.
+
 If you run the backend on another port:
 
 ```powershell
