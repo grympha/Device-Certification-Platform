@@ -23,7 +23,6 @@
   "system_time": "2026-06-11T08:00:00Z",
   "internet_connected": true,
   "lmx_app_installed": true,
-  "lmx_app_path": "C:\\Program Files\\LMX Content",
   "lmx_app_version": "1.0.34",
   "lmx_app_launchable": true,
   "deployment_readiness": {

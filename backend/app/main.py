@@ -268,11 +268,10 @@ def _report_out(report: DiagnosticReport) -> ReportOut:
 def _device_report_summary(report: DiagnosticReport, raw: dict[str, Any]) -> dict[str, Any]:
     existing = raw.get("device_report_summary")
     if isinstance(existing, dict):
-        return _sanitize_windows_summary(existing, raw)
+        return _sanitize_report_summary(existing)
     checks = raw.get("checks") if isinstance(raw.get("checks"), dict) else {}
-    return _sanitize_windows_summary(
+    return _sanitize_report_summary(
         build_device_report_summary(report.final_status, checks, report.recommendations),
-        raw,
     )
 
 
@@ -288,8 +287,8 @@ def _export_context(report: DiagnosticReport) -> dict[str, Any]:
         "final_recommendation": report.final_recommendation or raw.get("final_recommendation") or "Not Recommended",
         "score": report.score,
         "score_label": raw.get("score_label") or _score_label(report.score),
-        "summary": report.summary,
-        "recommendations": report.recommendations,
+        "summary": _sanitize_report_text(report.summary),
+        "recommendations": _sanitize_report_text(report.recommendations),
         "device_report_summary": _device_report_summary(report, raw),
     }
 
@@ -310,36 +309,11 @@ def _score_label(score: int) -> str:
     return "Not Recommended"
 
 
-def _sanitize_windows_summary(summary: dict[str, Any], raw: dict[str, Any]) -> dict[str, Any]:
-    if str(raw.get("platform") or "").lower() != "windows":
-        return summary
-
-    def sanitize(value: Any) -> str:
-        return (
-            str(value or "")
-            .replace(
-                "Install LMX Content package com.qruize.quad42.media.app.",
-                "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe.",
-            )
-            .replace("com.qruize.quad42.media.app", "LMX Content for Windows")
-            .replace(
-                "LMX Content may be installed but not launchable from Android.",
-                "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable.",
-            )
-            .replace(
-                "Reinstall or update LMX Content, then confirm the app can launch.",
-                "Reinstall or update LMX Content for Windows, then confirm MW Content.exe or mac-media-player.exe can launch.",
-            )
-            .replace(
-                "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer.",
-                "Update LMX Content for Windows to version 1.0.34 or newer.",
-            )
-        )
-
+def _sanitize_report_summary(summary: dict[str, Any]) -> dict[str, Any]:
     sanitized = dict(summary)
     for key in ["good_points", "warning_points", "failed_points", "likely_causes", "recommended_actions"]:
-        sanitized[key] = [sanitize(item) for item in summary.get(key) or []]
-    sanitized["overall_summary"] = sanitize(summary.get("overall_summary"))
+        sanitized[key] = [_sanitize_report_text(item) for item in summary.get(key) or []]
+    sanitized["overall_summary"] = _sanitize_report_text(summary.get("overall_summary"))
     return sanitized
 
 
@@ -347,11 +321,11 @@ def _html_report(report: DiagnosticReport) -> str:
     raw = json.loads(report.raw_json)
     checks = raw.get("checks", {})
     final_recommendation = report.final_recommendation or raw.get("final_recommendation") or "Not Recommended"
-    failed = [value["message"] for value in checks.values() if value.get("status") == "FAIL"]
-    limitations = [value["message"] for value in checks.values() if value.get("status") == "WARNING"]
+    failed = [_sanitize_report_text(value["message"]) for value in checks.values() if value.get("status") == "FAIL"]
+    limitations = [_sanitize_report_text(value["message"]) for value in checks.values() if value.get("status") == "WARNING"]
     failed_html = "".join(f"<li>{item}</li>" for item in failed) or "<li>None</li>"
     limitations_html = "".join(f"<li>{item}</li>" for item in limitations) or "<li>None</li>"
-    recommendations = _sanitize_windows_text(report.recommendations, raw)
+    recommendations = _sanitize_report_text(report.recommendations)
     manufacturer = _normalize_windows_hardware_name(raw.get("manufacturer", ""), raw)
     model = _normalize_windows_hardware_name(raw.get("model", ""), raw)
     os_version = _format_windows_version(raw) if str(raw.get("platform") or "").lower() == "windows" else raw.get("os_version", "")
@@ -399,23 +373,64 @@ def _html_report(report: DiagnosticReport) -> str:
     """
 
 
-def _sanitize_windows_text(value: Any, raw: dict[str, Any]) -> str:
-    if str(raw.get("platform") or "").lower() != "windows":
-        return str(value or "")
+def _sanitize_report_text(value: Any) -> str:
     return (
         str(value or "")
         .replace(
             "Install LMX Content package com.qruize.quad42.media.app.",
-            "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe.",
+            "Install LMX Content Application.",
         )
-        .replace("com.qruize.quad42.media.app", "LMX Content for Windows")
+        .replace(
+            "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe.",
+            "Install LMX Content Application.",
+        )
+        .replace("com.qruize.quad42.media.app", "LMX Content Application")
+        .replace("C:\\Program Files\\mac-media-player", "LMX Content Application")
+        .replace("C:\\Program Files\\LMX Content", "LMX Content Application")
+        .replace("MW Content.exe or mac-media-player.exe", "LMX Content Application")
+        .replace("MW Content.exe", "LMX Content Application")
+        .replace("mac-media-player.exe", "LMX Content Application")
+        .replace("LMX Content app is not installed.", "LMX Content Application is not installed.")
+        .replace("LMX Content app is installed.", "LMX Content Application is installed.")
+        .replace("LMX Content app cannot be launched.", "LMX Content Application cannot be launched.")
+        .replace("LMX Content app is launchable.", "LMX Content Application launches successfully.")
+        .replace("LMX Content version could not be detected.", "LMX Content Version could not be detected.")
+        .replace("Install a supported LMX Content build and rerun certification.", "Update LMX Content to the latest supported version and run certification again.")
         .replace(
             "LMX Content may be installed but not launchable from Android.",
-            "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable.",
+            "LMX Content Application may be installed but may not launch successfully.",
+        )
+        .replace(
+            "LMX Content for Windows may be installed but LMX Content Application may not be launchable.",
+            "LMX Content Application may be installed but may not launch successfully.",
+        )
+        .replace(
+            "Reinstall or update LMX Content, then confirm the app can launch.",
+            "Reinstall or update the LMX Content Application and verify it launches successfully.",
+        )
+        .replace(
+            "Reinstall or update LMX Content for Windows, then confirm LMX Content Application can launch.",
+            "Reinstall or update the LMX Content Application and verify it launches successfully.",
+        )
+        .replace(
+            "Install or update LMX Content for Windows and confirm the executable file version can be detected.",
+            "Install or update LMX Content Application and confirm the LMX Content Version can be detected.",
+        )
+        .replace(
+            "The LMX Content for Windows executable version could not be detected.",
+            "The LMX Content Version could not be detected.",
         )
         .replace(
             "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer.",
+            "Update LMX Content to the latest supported version.",
+        )
+        .replace(
             "Update LMX Content for Windows to version 1.0.34 or newer.",
+            "Update LMX Content to the latest supported version.",
+        )
+        .replace(
+            "Update LMX Content to Android version 2.9.1.2 native or newer.",
+            "Update LMX Content to the latest supported version.",
         )
     )
 

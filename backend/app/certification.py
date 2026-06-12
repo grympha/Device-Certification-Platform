@@ -225,19 +225,19 @@ def _likely_causes(checks: dict[str, Any]) -> list[str]:
         "network": "Network connectivity may be unavailable or unstable during validation.",
         "time_timezone": "Incorrect device time or timezone can affect scheduled content and reporting.",
         "lmx_app_installed": (
-            "LMX Content for Windows may not be installed in C:\\Program Files\\mac-media-player."
+            "LMX Content Application may not be installed."
             if is_windows else
             "LMX Content may not be installed on the device."
         ),
         "lmx_app_launch": (
-            "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable."
+            "LMX Content Application may be installed but may not launch successfully."
             if is_windows else
             "LMX Content may be installed but not launchable from Android."
         ),
         "lmx_version": (
-            "The LMX Content for Windows executable version could not be detected."
+            "The LMX Content Version could not be detected."
             if is_windows else
-            "The LMX Content version could not be detected."
+            "The LMX Content Version could not be detected."
         ),
         "programmatic_vast": "Programmatic/VAST readiness may be limited by Android version, WebView, RAM, or network state.",
         "pull_to_content": "The installed LMX Content version may be below the Pull To Content requirement.",
@@ -264,25 +264,25 @@ def _recommended_actions(checks: dict[str, Any], recommendations: str | None) ->
         "network": "Confirm the device has stable internet connectivity before deployment.",
         "time_timezone": "Correct the device date, time, and timezone settings.",
         "lmx_app_installed": (
-            "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe."
+            "Install LMX Content Application."
             if is_windows else
-            "Install LMX Content package com.qruize.quad42.media.app."
+            "Install LMX Content Application."
         ),
         "lmx_app_launch": (
-            "Reinstall or update LMX Content for Windows, then confirm MW Content.exe or mac-media-player.exe can launch."
+            "Reinstall or update the LMX Content Application and verify it launches successfully."
             if is_windows else
-            "Reinstall or update LMX Content, then confirm the app can launch."
+            "Reinstall or update the LMX Content Application and verify it launches successfully."
         ),
         "lmx_version": (
-            "Install or update LMX Content for Windows and confirm the executable file version can be detected."
+            "Install or update LMX Content Application and confirm the LMX Content Version can be detected."
             if is_windows else
-            "Install a supported LMX Content build and rerun certification."
+            "Update LMX Content to the latest supported version and run certification again."
         ),
         "programmatic_vast": "Update WebView and verify Android version, RAM, and internet connectivity.",
         "pull_to_content": (
-            "Update LMX Content for Windows to version 1.0.34 or newer."
+            "Update LMX Content to the latest supported version."
             if is_windows else
-            "Update LMX Content to Android version 2.9.1.2 native or newer."
+            "Update LMX Content to the latest supported version."
         ),
     }
     for key, check in checks.items():
@@ -409,21 +409,21 @@ def _time_check(report: dict[str, Any]) -> CheckResult:
 
 def _lmx_installed_check(report: dict[str, Any]) -> CheckResult:
     if not report.get("lmx_app_installed"):
-        return CheckResult("lmx_app_installed", FAIL, "LMX Content app is not installed.")
-    return CheckResult("lmx_app_installed", PASS, "LMX Content app is installed.")
+        return CheckResult("lmx_app_installed", FAIL, "LMX Content Application is not installed.")
+    return CheckResult("lmx_app_installed", PASS, "LMX Content Application is installed.")
 
 
 def _lmx_launch_check(report: dict[str, Any]) -> CheckResult:
     if not report.get("lmx_app_launchable"):
-        return CheckResult("lmx_app_launch", FAIL, "LMX Content app cannot be launched.")
-    return CheckResult("lmx_app_launch", PASS, "LMX Content app is launchable.")
+        return CheckResult("lmx_app_launch", FAIL, "LMX Content Application cannot be launched.")
+    return CheckResult("lmx_app_launch", PASS, "LMX Content Application launches successfully.")
 
 
 def _lmx_version_check(report: dict[str, Any]) -> CheckResult:
     version = report.get("lmx_app_version") or report.get("lmx_version")
     if not version:
-        return CheckResult("lmx_version", FAIL, "LMX Content version could not be detected.")
-    return CheckResult("lmx_version", PASS, f"LMX Content version detected: {version}.")
+        return CheckResult("lmx_version", FAIL, "LMX Content Version could not be detected.")
+    return CheckResult("lmx_version", PASS, f"LMX Content Version detected: {version}.")
 
 
 def _windows_lmx_version_check(report: dict[str, Any]) -> CheckResult:
@@ -431,8 +431,8 @@ def _windows_lmx_version_check(report: dict[str, Any]) -> CheckResult:
     if not version:
         return CheckResult("lmx_version", WARNING, "Version Unknown")
     if _version_at_least(version, "1.0.34"):
-        return CheckResult("lmx_version", PASS, f"Windows LMX Content version {version} is supported.")
-    return CheckResult("lmx_version", WARNING, f"Windows LMX Content version {version} is below the recommended 1.0.34.")
+        return CheckResult("lmx_version", PASS, f"LMX Content Version {version} is supported.")
+    return CheckResult("lmx_version", WARNING, f"LMX Content Version {version} is below the recommended level.")
 
 
 def _programmatic_check(report: dict[str, Any]) -> CheckResult:

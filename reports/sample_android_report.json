@@ -17,7 +17,6 @@
   "timezone": "Asia/Kuala_Lumpur",
   "webview_version": "106.0.5249.126",
   "hardware_acceleration_ready": true,
-  "lmx_app_package": "com.qruize.quad42.media.app",
   "lmx_app_installed": true,
   "lmx_app_version": "2.9.3.6 native",
   "lmx_app_launchable": true,

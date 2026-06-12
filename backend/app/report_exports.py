@@ -362,7 +362,7 @@ def _assessment_rows(context: dict[str, Any]) -> list[tuple[str, str, str]]:
         rows.append((
             CHECK_LABELS[key],
             str(check.get("status") or "UNKNOWN"),
-            str(check.get("message") or "-"),
+            _sanitize_report_text(check.get("message") or "-"),
         ))
     return rows
 
@@ -395,36 +395,73 @@ def _docx_summary_section(document: Document, summary: dict[str, Any]) -> None:
 
 
 def _sanitize_summary_for_platform(summary: dict[str, Any], raw: dict[str, Any]) -> dict[str, Any]:
-    if _platform(raw) != "windows":
-        return summary
-
-    def sanitize(value: Any) -> str:
-        return (
-            str(value or "")
-            .replace(
-                "Install LMX Content package com.qruize.quad42.media.app.",
-                "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe.",
-            )
-            .replace("com.qruize.quad42.media.app", "LMX Content for Windows")
-            .replace(
-                "LMX Content may be installed but not launchable from Android.",
-                "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable.",
-            )
-            .replace(
-                "Reinstall or update LMX Content, then confirm the app can launch.",
-                "Reinstall or update LMX Content for Windows, then confirm MW Content.exe or mac-media-player.exe can launch.",
-            )
-            .replace(
-                "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer.",
-                "Update LMX Content for Windows to version 1.0.34 or newer.",
-            )
-        )
-
     sanitized = dict(summary)
     for key in ["good_points", "warning_points", "failed_points", "likely_causes", "recommended_actions"]:
-        sanitized[key] = [sanitize(item) for item in summary.get(key) or []]
-    sanitized["overall_summary"] = sanitize(summary.get("overall_summary"))
+        sanitized[key] = [_sanitize_report_text(item) for item in summary.get(key) or []]
+    sanitized["overall_summary"] = _sanitize_report_text(summary.get("overall_summary"))
     return sanitized
+
+
+def _sanitize_report_text(value: Any) -> str:
+    return (
+        str(value or "")
+        .replace(
+            "Install LMX Content package com.qruize.quad42.media.app.",
+            "Install LMX Content Application.",
+        )
+        .replace(
+            "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe.",
+            "Install LMX Content Application.",
+        )
+        .replace("com.qruize.quad42.media.app", "LMX Content Application")
+        .replace("C:\\Program Files\\mac-media-player", "LMX Content Application")
+        .replace("C:\\Program Files\\LMX Content", "LMX Content Application")
+        .replace("MW Content.exe or mac-media-player.exe", "LMX Content Application")
+        .replace("MW Content.exe", "LMX Content Application")
+        .replace("mac-media-player.exe", "LMX Content Application")
+        .replace("LMX Content app is not installed.", "LMX Content Application is not installed.")
+        .replace("LMX Content app is installed.", "LMX Content Application is installed.")
+        .replace("LMX Content app cannot be launched.", "LMX Content Application cannot be launched.")
+        .replace("LMX Content app is launchable.", "LMX Content Application launches successfully.")
+        .replace("LMX Content version could not be detected.", "LMX Content Version could not be detected.")
+        .replace("Install a supported LMX Content build and rerun certification.", "Update LMX Content to the latest supported version and run certification again.")
+        .replace(
+            "LMX Content may be installed but not launchable from Android.",
+            "LMX Content Application may be installed but may not launch successfully.",
+        )
+        .replace(
+            "LMX Content for Windows may be installed but LMX Content Application may not be launchable.",
+            "LMX Content Application may be installed but may not launch successfully.",
+        )
+        .replace(
+            "Reinstall or update LMX Content, then confirm the app can launch.",
+            "Reinstall or update the LMX Content Application and verify it launches successfully.",
+        )
+        .replace(
+            "Reinstall or update LMX Content for Windows, then confirm LMX Content Application can launch.",
+            "Reinstall or update the LMX Content Application and verify it launches successfully.",
+        )
+        .replace(
+            "Install or update LMX Content for Windows and confirm the executable file version can be detected.",
+            "Install or update LMX Content Application and confirm the LMX Content Version can be detected.",
+        )
+        .replace(
+            "The LMX Content for Windows executable version could not be detected.",
+            "The LMX Content Version could not be detected.",
+        )
+        .replace(
+            "Update LMX Content to Android version 2.9.1.2 native or newer, or Windows version 1.0.34 or newer.",
+            "Update LMX Content to the latest supported version.",
+        )
+        .replace(
+            "Update LMX Content for Windows to version 1.0.34 or newer.",
+            "Update LMX Content to the latest supported version.",
+        )
+        .replace(
+            "Update LMX Content to Android version 2.9.1.2 native or newer.",
+            "Update LMX Content to the latest supported version.",
+        )
+    )
 
 
 def _normalize_windows_hardware_name(value: str) -> str:

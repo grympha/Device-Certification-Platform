@@ -75,7 +75,6 @@ const sampleReport = {
     cpu_architecture: "arm64-v8a",
     screen_resolution: "1920x1080",
     webview_version: "106.0.5249.126",
-    lmx_app_package: "com.qruize.quad42.media.app",
     lmx_app_version: "1.4.2",
     lmx_app_installed: true,
     lmx_app_launchable: true,
@@ -1000,13 +999,13 @@ function likelyCauses(checks, raw = {}) {
     network: "Network connectivity may be unavailable or unstable during validation.",
     time_timezone: "Incorrect device time or timezone can affect scheduled content and reporting.",
     lmx_app_installed: windows
-      ? "LMX Content for Windows may not be installed in C:\\Program Files\\mac-media-player."
+      ? "LMX Content Application may not be installed."
       : "LMX Content may not be installed on the device.",
     lmx_app_launch: windows
-      ? "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable."
+      ? "LMX Content Application may be installed but may not launch successfully."
       : "LMX Content may be installed but not launchable from Android.",
     lmx_version: windows
-      ? "The LMX Content for Windows executable version could not be detected."
+      ? "The LMX Content Version could not be detected."
       : "The LMX Content version could not be detected.",
     programmatic_vast: "Programmatic/VAST readiness may be limited by Android version, WebView, RAM, or network state.",
     pull_to_content: "The installed LMX Content version may be below the Pull To Content requirement."
@@ -1031,18 +1030,18 @@ function recommendedActions(checks, recommendations, raw = {}) {
     network: "Confirm the device has stable internet connectivity before deployment.",
     time_timezone: "Correct the device date, time, and timezone settings.",
     lmx_app_installed: windows
-      ? "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe."
-      : "Install LMX Content package com.qruize.quad42.media.app.",
+      ? "Install LMX Content Application."
+      : "Install LMX Content Application.",
     lmx_app_launch: windows
-      ? "Reinstall or update LMX Content for Windows, then confirm MW Content.exe or mac-media-player.exe can launch."
-      : "Reinstall or update LMX Content, then confirm the app can launch.",
+      ? "Reinstall or update the LMX Content Application and verify it launches successfully."
+      : "Reinstall or update the LMX Content Application and verify it launches successfully.",
     lmx_version: windows
-      ? "Install or update LMX Content for Windows and confirm the executable file version can be detected."
-      : "Install a supported LMX Content build and rerun certification.",
+      ? "Install or update LMX Content Application and confirm the LMX Content Version can be detected."
+      : "Update LMX Content to the latest supported version and run certification again.",
     programmatic_vast: "Update WebView and verify Android version, RAM, and internet connectivity.",
     pull_to_content: windows
-      ? "Update LMX Content for Windows to version 1.0.34 or newer."
-      : "Update LMX Content to Android version 2.9.1.2 native or newer."
+      ? "Update LMX Content to the latest supported version."
+      : "Update LMX Content to the latest supported version."
   };
   const items = Object.entries(checks)
     .filter(([, check]) => ["WARNING", "FAIL"].includes(check.status))
@@ -1079,7 +1078,6 @@ function prioritizeActions(items = []) {
 }
 
 function sanitizeSummaryForPlatform(summary = {}, raw = {}) {
-  if (!isWindows(raw)) return summary;
   const sanitize = (value) => sanitizeWindowsText(value);
   const sanitizeList = (items) => (items || []).map(sanitize);
   return {
@@ -1095,11 +1093,29 @@ function sanitizeSummaryForPlatform(summary = {}, raw = {}) {
 
 function sanitizeWindowsText(value = "") {
   return String(value)
-    .replace(/Install LMX Content package com\.qruize\.quad42\.media\.app\./g, "Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content.exe or mac-media-player.exe.")
-    .replace(/com\.qruize\.quad42\.media\.app/g, "LMX Content for Windows")
-    .replace(/LMX Content may be installed but not launchable from Android\./g, "LMX Content for Windows may be installed but MW Content.exe or mac-media-player.exe may not be launchable.")
-    .replace(/Reinstall or update LMX Content, then confirm the app can launch\./g, "Reinstall or update LMX Content for Windows, then confirm MW Content.exe or mac-media-player.exe can launch.")
-    .replace(/Update LMX Content to Android version 2\.9\.1\.2 native or newer, or Windows version 1\.0\.34 or newer\./g, "Update LMX Content for Windows to version 1.0.34 or newer.");
+    .replace(/Install LMX Content package com\.qruize\.quad42\.media\.app\./g, "Install LMX Content Application.")
+    .replace(/Install LMX Content for Windows in C:\\Program Files\\mac-media-player using MW Content\.exe or mac-media-player\.exe\./g, "Install LMX Content Application.")
+    .replace(/com\.qruize\.quad42\.media\.app/g, "LMX Content Application")
+    .replace(/C:\\Program Files\\mac-media-player/g, "LMX Content Application")
+    .replace(/C:\\Program Files\\LMX Content/g, "LMX Content Application")
+    .replace(/MW Content\.exe or mac-media-player\.exe/g, "LMX Content Application")
+    .replace(/MW Content\.exe/g, "LMX Content Application")
+    .replace(/mac-media-player\.exe/g, "LMX Content Application")
+    .replace(/LMX Content app is not installed\./g, "LMX Content Application is not installed.")
+    .replace(/LMX Content app is installed\./g, "LMX Content Application is installed.")
+    .replace(/LMX Content app cannot be launched\./g, "LMX Content Application cannot be launched.")
+    .replace(/LMX Content app is launchable\./g, "LMX Content Application launches successfully.")
+    .replace(/LMX Content version could not be detected\./g, "LMX Content Version could not be detected.")
+    .replace(/Install a supported LMX Content build and rerun certification\./g, "Update LMX Content to the latest supported version and run certification again.")
+    .replace(/LMX Content may be installed but not launchable from Android\./g, "LMX Content Application may be installed but may not launch successfully.")
+    .replace(/LMX Content for Windows may be installed but LMX Content Application may not be launchable\./g, "LMX Content Application may be installed but may not launch successfully.")
+    .replace(/Reinstall or update LMX Content, then confirm the app can launch\./g, "Reinstall or update the LMX Content Application and verify it launches successfully.")
+    .replace(/Reinstall or update LMX Content for Windows, then confirm LMX Content Application can launch\./g, "Reinstall or update the LMX Content Application and verify it launches successfully.")
+    .replace(/Install or update LMX Content for Windows and confirm the executable file version can be detected\./g, "Install or update LMX Content Application and confirm the LMX Content Version can be detected.")
+    .replace(/The LMX Content for Windows executable version could not be detected\./g, "The LMX Content Version could not be detected.")
+    .replace(/Update LMX Content to Android version 2\.9\.1\.2 native or newer, or Windows version 1\.0\.34 or newer\./g, "Update LMX Content to the latest supported version.")
+    .replace(/Update LMX Content for Windows to version 1\.0\.34 or newer\./g, "Update LMX Content to the latest supported version.")
+    .replace(/Update LMX Content to Android version 2\.9\.1\.2 native or newer\./g, "Update LMX Content to the latest supported version.");
 }
 
 function formatMalaysiaTime(timestamp) {

@@ -278,13 +278,7 @@ The EXE is generated at:
 windows-agent\dist\LMX-Windows-Certification.exe
 ```
 
-The Windows app detects LMX Content in:
-
-```text
-C:\Program Files\mac-media-player
-```
-
-It passes LMX installation when either `MW Content.exe` or `mac-media-player.exe` exists, and reads the executable file version for LMX version validation.
+The Windows app checks whether the LMX Content Application is installed, can launch successfully, and has a detectable LMX Content Version.
 - Render deployment guide: `docs/RENDER_DEPLOYMENT.md`
 - Deployment checklist: `docs/DEPLOYMENT_CHECKLIST.md`
 - Neon PostgreSQL setup: `docs/NEON_POSTGRES_SETUP.md`
@@ -410,7 +404,7 @@ Device compatibility rules:
 - WebView: PASS 110+, WARNING 100-109, FAIL below 100.
 - Network: PASS when connected, FAIL when offline.
 - Time/Timezone: PASS when detected, WARNING when timezone cannot be verified, FAIL when device time is invalid.
-- LMX App Installed/Launch: PASS when package `com.qruize.quad42.media.app` is detected and launchable, FAIL otherwise.
+- LMX App Installed/Launch: PASS when the LMX Content Application is detected and launches successfully, FAIL otherwise.
 - LMX Version: PASS when the LMX version is detected, FAIL when it is missing.
 - Programmatic/VAST: PASS for Android 11+, WebView 110+, RAM 3GB+, and internet, or when actual VAST playback success is reported. WARNING for Android 11+ with WebView 100-109. FAIL below Android 11 or WebView 100.
 - Pull To Content for Android: PASS requires LMX `2.9.1.2 native` or above. Below `2.9.1.2 native` is FAIL.
@@ -441,8 +435,8 @@ PASS receives full points, WARNING receives half points, and FAIL receives zero 
 
 Score labels:
 
-- 95-100: Excellent
-- 80-94: Good
+- 90-100: Excellent
+- 80-89: Good
 - 60-79: Limited
 - Below 60: Not Recommended
 
@@ -452,21 +446,7 @@ Final recommendation:
 - `Certified with Limitation`: Device Certification is Approved with Limitation.
 - `Not Recommended`: Device Certification is Not Recommended.
 
-LMX package:
-
-```text
-com.qruize.quad42.media.app
-```
-
-Known local paths:
-
-```text
-/sdcard/Android/data/com.qruize.quad42.media.app/files/QUAD42MEDIA/
-/sdcard/Android/data/com.qruize.quad42.media.app/files/QUAD42LOG/
-/sdcard/Android/data/com.qruize.quad42.media.app/files/QUAD42AUDIT/appender.csv
-```
-
-The APK report includes the retained device compatibility fields plus LMX installed, launchable, and version fields. It does not request All Files Access and does not read `QUAD42MEDIA`, `QUAD42AUDIT`, or `QUAD42LOG`.
+The APK report includes the retained device compatibility fields plus LMX Content Application installed, launchable, and version fields. It does not request All Files Access and does not inspect local media, audit, or log folders.
 
 ## Upload Troubleshooting
 

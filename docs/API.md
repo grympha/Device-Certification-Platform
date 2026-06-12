@@ -19,7 +19,6 @@ Required and commonly used fields:
   "internet_connected": true,
   "system_time": "2026-06-10T00:02:20Z",
   "timezone": "Asia/Kuala_Lumpur",
-  "lmx_app_package": "com.qruize.quad42.media.app",
   "lmx_app_installed": true,
   "lmx_app_launchable": true,
   "lmx_app_version": "2.9.3.6 native"
