@@ -1045,15 +1045,17 @@ function recommendedActions(checks, recommendations, raw = {}) {
   };
   const items = Object.entries(checks)
     .filter(([, check]) => ["WARNING", "FAIL"].includes(check.status))
-    .map(([key, check]) => key === "ram" ? ramRecommendation(check) : map[key])
+    .map(([key, check]) => key === "ram" ? ramRecommendation(check, windows) : map[key])
     .filter(Boolean);
   if (items.length) return Array.from(new Set(items));
   return recommendations ? [recommendations] : ["No action required before deployment."];
 }
 
-function ramRecommendation(check = {}) {
+function ramRecommendation(check = {}, isWindowsReport = false) {
+  if (isWindowsReport && check.status === "FAIL") return "Upgrade the device to at least 8GB RAM before deployment.";
+  if (isWindowsReport && check.status === "WARNING") return "Increase system memory to 8GB or higher for optimal LMX Content performance.";
   if (check.status === "FAIL") return "Use a device with at least 4GB RAM.";
-  if (check.status === "WARNING") return "Use 8GB RAM or above for optimal LMX Content performance.";
+  if (check.status === "WARNING") return "Use 4GB RAM or above for optimal LMX Content performance.";
   return null;
 }
 

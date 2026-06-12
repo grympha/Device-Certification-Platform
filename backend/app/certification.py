@@ -287,7 +287,7 @@ def _recommended_actions(checks: dict[str, Any], recommendations: str | None) ->
     }
     for key, check in checks.items():
         if isinstance(check, dict) and check.get("status") in {WARNING, FAIL}:
-            action = _ram_recommendation(check) if key == "ram" else action_map.get(key)
+            action = _ram_recommendation(check, is_windows) if key == "ram" else action_map.get(key)
             if action and action not in actions:
                 actions.append(action)
     if not actions and recommendations:
@@ -295,11 +295,15 @@ def _recommended_actions(checks: dict[str, Any], recommendations: str | None) ->
     return actions or ["No action required before deployment."]
 
 
-def _ram_recommendation(check: dict[str, Any]) -> str | None:
+def _ram_recommendation(check: dict[str, Any], is_windows: bool) -> str | None:
+    if is_windows and check.get("status") == FAIL:
+        return "Upgrade the device to at least 8GB RAM before deployment."
+    if is_windows and check.get("status") == WARNING:
+        return "Increase system memory to 8GB or higher for optimal LMX Content performance."
     if check.get("status") == FAIL:
         return "Use a device with at least 4GB RAM."
     if check.get("status") == WARNING:
-        return "Use 8GB RAM or above for optimal LMX Content performance."
+        return "Use 4GB RAM or above for optimal LMX Content performance."
     return None
 
 

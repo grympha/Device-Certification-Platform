@@ -399,7 +399,8 @@ The platform validates device compatibility and LMX Content readiness.
 Device compatibility rules:
 
 - Android: PASS 11+, WARNING 9-10, FAIL below 9.
-- RAM: PASS 4GB+, WARNING 2GB-3.99GB, FAIL below 2GB.
+- Android RAM: PASS 4GB+, WARNING 2GB-3.99GB, FAIL below 2GB.
+- Windows RAM: PASS 8GB+, WARNING 4GB-7.99GB, FAIL below 4GB.
 - Storage: PASS 5GB+ free, WARNING 2GB-4.99GB, FAIL below 2GB.
 - WebView: PASS 110+, WARNING 100-109, FAIL below 100.
 - Network: PASS when connected, FAIL when offline.
@@ -445,6 +446,12 @@ Final recommendation:
 - `Certified for LMX Content`: Device Certification is Approved.
 - `Certified with Limitation`: Device Certification is Approved with Limitation.
 - `Not Recommended`: Device Certification is Not Recommended.
+
+Windows RAM recommendation wording:
+
+- 8GB and above: no RAM recommendation required.
+- 4GB to 7.99GB: `Increase system memory to 8GB or higher for optimal LMX Content performance.`
+- Below 4GB: `Upgrade the device to at least 8GB RAM before deployment.`
 
 The APK report includes the retained device compatibility fields plus LMX Content Application installed, launchable, and version fields. It does not request All Files Access and does not inspect local media, audit, or log folders.
 
