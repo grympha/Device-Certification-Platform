@@ -550,9 +550,9 @@ input {
 }
 
 .inline-edit-icon {
-  width: 28px;
-  min-width: 28px;
-  min-height: 28px;
+  width: 22px;
+  min-width: 22px;
+  min-height: 22px;
   color: var(--blue);
 }
 

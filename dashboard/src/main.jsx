@@ -696,12 +696,12 @@ function InfoItem({ label, value, platform, onEdit }) {
       <Icon size={15} />
       <span>{label}</span>
       <strong>
-        {value}
         {onEdit && (
           <button className="ghost-icon inline-edit-icon" onClick={onEdit} title="Edit Device Name" aria-label="Edit Device Name">
             <Pencil size={14} />
           </button>
         )}
+        {value}
       </strong>
     </div>
   );
